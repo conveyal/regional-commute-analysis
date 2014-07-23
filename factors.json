@@ -1,0 +1,13 @@
+{
+  "bikeParking": 1,
+  "calories": 3,
+  "calsBiking": 10,
+  "calsWalking": 4.4,
+  "carParking": 5,
+  "carParkingCost": 10,
+  "co2": 0.5,
+  "cost": 5,
+  "mileageRate": 0.56,
+  "mpg": 21.4,
+  "transfer": 5
+}

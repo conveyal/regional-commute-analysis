@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+
+var args = require('minimist')(process.argv.slice(2), {
+  string: 'destination'
+});
+
+var debug = require('debug')('extract-ods');
+var fs = require('fs');
+var resolve = require('path').resolve;
+var centroids = require(resolve(args.centroids));
+
+var inputFile = args._[0];
+var outputFile = args._[1];
+
+var minTrips = args.trips; // Minimum required paired trips
+var pairs = args.overwrite // overwrite file
+  ? []
+  : JSON.parse(fs.readFileSync(outputFile, { encoding: 'utf8' }));
+var destination = args.destination; // FIPS number
+
+var file = fs.readFileSync(inputFile, { encoding: 'utf8' });
+var lines = file.split('\n').slice(1);
+
+for (var i = 0; i < lines.length; i++) lines[i] = lines[i].split(',');
+
+lines = lines.filter(function(line) {
+  return line[0] && line[1]
+  && line[1].substring(0, 2) === destination
+  && line[0] in centroids
+  && line[1] in centroids
+  && line[2] > minTrips;
+});
+
+for (var i = 0; i < lines.length; i++) {
+  var line = lines[i];
+  var destination = line[0], origin = line[1];
+
+  pairs.push([
+    centroids[origin],
+    centroids[destination]
+  ]);
+}
+
+debug(lines.length + ' journeys found in ' + inputFile);
+
+fs.writeFileSync(outputFile, JSON.stringify(pairs, null, '\t'), { encoding: 'utf8' });

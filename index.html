@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/dc/1.7.1/dc.css">
+    <style type="text/css">
+      .dc-table-group {
+        display: none;
+      }
+    </style>
+    <script>
+      // constants
+      var height = 150;
+
+      // globals
+      var blocks, charts = {}, profiles;
+    </script>
+  </head>
+  <body>
+    <div id="viz" style="display:none;">
+      <div class="container">
+        <div class="row">
+          <div id="data-count" class="col-sm-12">
+            <h4><strong class="filter-count"></strong> selected out of <strong class="total-count"></strong> records</h4>
+          </div>
+          <div id="mode-pie-chart" class="col-sm-2">
+            <strong>Fastest Mode</strong>
+            <a class="reset" href="javascript:charts.mode.filterAll();dc.redrawAll('profiles');" style="display:none;">reset</a>
+            <div class="clearfix"></div>
+          </div>
+          <div class="col-sm-12">
+            <table id="data-table" class="table table-condensed table-hover"></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/spin.js/2.0.1/spin.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.4.10/d3.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/crossfilter/1.3.7/crossfilter.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/dc/1.7.1/dc.js"></script>
+    <script>
+      var spinner = new Spinner().spin();
+      document.body.appendChild(spinner.el);
+
+      // Load json
+      d3.json('./profiles.json', processProfiles);
+
+      function processProfiles(err, json) {
+        window.json = json;
+
+        profiles = crossfilter(json);
+        dimensions = getDimensions(profiles);
+
+        charts.table = dc.dataTable('#data-table', 'profiles')
+          .columns(getTableColumns())
+          .dimension(dimensions.topTime)
+          .group(function(d) {
+            return '';
+          })
+          .sortBy(function(d) {
+            return d.options[0].time;
+          })
+          .size(50);
+
+        charts.mode = dc.pieChart('#mode-pie-chart', 'profiles')
+          .height(height)
+          .dimension(dimensions.fastestMode)
+          .group(dimensions.fastestMode.group());
+
+        charts.time = dc.pieChart('')
+
+        charts.count = dc.dataCount('#data-count', 'profiles')
+          .dimension(profiles)
+          .group(profiles.groupAll());
+
+        dc.renderAll('profiles');
+
+        document.getElementById('viz').style.display = 'block';
+        spinner.stop();
+      }
+
+      function getDimensions(p) {
+        return {
+          fastestMode: p.dimension(function(d) { return d.options[0].mode; }),
+          topTime: p.dimension(function(d) { return d.options[0].time; }),
+          avgTime: p.dimension(function(d) {
+            return d.options.reduce(function(memo, option) {
+              return memo + option.time;
+            }, 0) / d.options.length;
+          })
+        };
+      }
+
+      function getTableColumns() {
+        return [
+          function(d) { return d.journey[0][2]; },
+          function(d) { return d.journey[1][1]; },
+          function(d) { return d.options.reduce(function(memo, option) {
+            return memo + option.mode + ' (' + option.score + '), ';
+          }, '').slice(0, -2); }
+        ];
+      }
+    </script>
+  </body>
+</html>

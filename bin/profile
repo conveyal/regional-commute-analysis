@@ -1,0 +1,87 @@
+#!/usr/bin/env node
+
+var args = require('minimist')(process.argv.slice(2), {
+  string: [ 'start', 'end' ]
+});
+
+var Batch = require('batch');
+var debug = require('debug')('profile');
+var resolve = require('path').resolve;
+var factors = args.factors
+  ? require(resolve(args.factors))
+  : null;
+
+var fs = require('fs');
+var journeys = require(resolve(args._[0]));
+var Profiler = require('otp-profiler');
+var ProfileScore = require('otp-profile-score');
+var Progress = require('progress');
+
+var batch = new Batch;
+var profiler = new Profiler({
+  host: args.host
+});
+var scorer = new ProfileScore(factors);
+
+batch.concurrency(2);
+
+debug('profiling ' + journeys.length + ' journeys');
+
+var errors = [];
+var progress = new Progress(':bar', { total: journeys.length });
+
+journeys.forEach(function(journey) {
+  batch.push(function(done) {
+    profiler.profile({
+      from: {
+        lon: journey[0][0],
+        lat: journey[0][1]
+      },
+      to: {
+        lon: journey[1][0],
+        lat: journey[1][1]
+      },
+      orderBy: 'AVG',
+      modes: args.modes,
+      startTime: args.start,
+      endTime: args.end,
+      limit: args.limit || 3,
+    }, function(err, results) {
+      if (err) {
+        errors.push({
+          error: err,
+          journey: journey
+        });
+        done();
+      } else if (!results || !results.options || results.options.length < 1) {
+        errors.push({
+          error: 'No results returned',
+          journey: journey
+        });
+        done();
+      } else {
+        var options = args.score
+          ? scorer.processOptions(results.options)
+          : results.options;
+
+        done(null, {
+          journey: journey,
+          options: options
+        });
+      }
+    });
+  });
+});
+
+batch.on('progress', function() {
+  progress.tick();
+});
+
+batch.end(function(err, results) {
+  if (err) console.error(err);
+
+  debug('finished with ' + errors.length + ' errors');
+
+  fs.writeFileSync(args._[1], JSON.stringify(results.filter(function(i) { return !!i; }), null, '\t'), { encoding: 'utf8' });
+  fs.writeFileSync(args.errors, JSON.stringify(errors, null, '\t'), { encoding: 'utf8' });
+});

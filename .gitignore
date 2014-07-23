@@ -1,0 +1,7 @@
+centroids.json
+errors.json
+od-pairs.json
+profiles.json
+
+data/*
+node_modules
