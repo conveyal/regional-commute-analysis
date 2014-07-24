@@ -5,3 +5,5 @@ profiles.json
 
 data/*
 node_modules
+build
+components

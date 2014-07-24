@@ -4,7 +4,7 @@ var args = require('minimist')(process.argv.slice(2), {
   string: 'destination'
 });
 
-var debug = require('debug')('extract-ods');
+var debug = require('debug')('regional-commute-analysis:extract-ods');
 var fs = require('fs');
 var resolve = require('path').resolve;
 var centroids = require(resolve(args.centroids));
