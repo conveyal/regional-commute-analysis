@@ -8,7 +8,7 @@ var fs = require('fs');
 var inputFile = args._[0];
 var outputFile = args._[1];
 
-var data = args.overwrite // pass in --overwrite to wipe the file
+var data = !fs.existsSync(outputFile)
   ? {}
   : JSON.parse(fs.readFileSync(outputFile, { encoding: 'utf8' }));
 

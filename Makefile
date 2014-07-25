@@ -1,10 +1,31 @@
 
+# From https://www.census.gov/geo/maps-data/data/tiger-line.html
+BLOCKS = \
+	data/blocks/tl_2013_11_tabblock.shp \
+	data/blocks/tl_2013_24_tabblock.shp \
+	data/blocks/tl_2013_51_tabblock.shp
+
+CENTROIDS = $(wildcard data/centroids/*.csv)
+
+# FIPS State Codes
+DESTINATIONS = 11,51
+
+# From http://lehd.ces.census.gov/data/
+LODES = \
+	data/lodes/dc_od_main_JT00_2011.csv \
+	data/lodes/dc_od_aux_JT00_2011.csv \
+	data/lodes/md_od_main_JT00_2011.csv \
+	data/lodes/md_od_aux_JT00_2011.csv \
+	data/lodes/va_od_main_JT00_2011.csv \
+	data/lodes/va_od_aux_JT00_2011.csv
+
+ODS = $(wildcard data/lodes/*.csv)
+
+# Minimum # of trips between OD pairs
+TRIPS = 10
+
 build: components
 	@component build
-
-centroids.json:
-	@./bin/add-centroid data/dc_metro_centroids.csv centroids.json --overwrite
-	@./bin/add-centroid data/va_dc_metro_centroids.csv centroids.json
 
 clean:
 	rm -rf build components
@@ -12,29 +33,47 @@ clean:
 components: node_modules
 	@component install
 
-download-blocks:
-	@wget ftp://ftp2.census.gov/geo/tiger/TIGER2013/TABBLOCK/tl_2013_11_tabblock.zip --output-document=data/tl_2013_11_tabblock.zip
-	@wget ftp://ftp2.census.gov/geo/tiger/TIGER2013/TABBLOCK/tl_2013_51_tabblock.zip --output-document=data/tl_2013_51_tabblock.zip
-	@unzip data/tl_2013_11_tabblock.zip -d data/tl_2013_11_tabblock
-	@unzip data/tl_2013_51_tabblock.zip -d data/tl_2013_51_tabblock
+data/centroids.json:
+	@$(foreach file, $(CENTROIDS), ./bin/add-centroid $(file) data/centroids.json;)
 
-node_modules:
-	@npm install
-	@npm install component serve -g
+# DC: 11, MD: 24, VA: 51
+data/od-pairs.json: data/centroids.json
+	@$(foreach file, $(ODS), ./bin/extract-ods $(file) data/od-pairs.json \
+		--centroids data/centroids.json \
+		--destinations $(DESTINATIONS) \
+		--trips $(TRIPS);)
 
-od-pairs.json: centroids.json
-	@./bin/extract-ods data/dc_od_aux_JT05_2011.csv od-pairs.json --centroids centroids.json --overwrite --destination 51 --trips 1
-	@./bin/extract-ods data/va_od_aux_JT05_2011.csv od-pairs.json --centroids centroids.json --destination 11 --trips 1
-	@./bin/extract-ods data/va_od_main_JT05_2011.csv od-pairs.json --centroids centroids.json --destination 51 --trips 1
-
-profiles.json: od-pairs.json
-	@./bin/profile od-pairs.json profiles.json \
+data/profiles.json: data/od-pairs.json
+	@./bin/profile data/od-pairs.json data/profiles.json \
 		--host http://localhost:8080/otp/routers/default \
 		--modes BICYCLE,BUS,CAR,TRAINISH,WALK \
 		--start 07:00 \
 		--end 09:00 \
 		--limit 2 \
 		--factors factors.json \
-		--errors errors.json
+		--errors data/errors.json
 
-.PHONY: download-blocks profiles clean
+download-blocks: $(BLOCKS)
+data/blocks/%.shp:
+	@wget ftp://ftp2.census.gov/geo/tiger/TIGER2013/TABBLOCK/$(basename $(notdir $@)).zip
+	@unzip $(basename $(notdir $@)).zip $(notdir $@) -d data/blocks
+	@rm $(basename $(notdir $@)).zip
+
+download-lodes: $(LODES)
+data/lodes/%.csv:
+	@curl http://lehd.ces.census.gov/data/lodes/LODES7/$(word 1, $(subst _, ,$(notdir $@)))/od/$(notdir $@).gz \
+		| gzip --decompress > $@
+
+install: node_modules
+	@mkdir data data/blocks data/centroids data/lodes
+
+node_modules:
+	@npm install
+	@npm install component serve -g
+
+profiles: data/profiles.json
+
+push:
+	@to-s3 . commute-analysis.conveyal.com
+
+.PHONY: clean download-blocks download-lodes install profiles push

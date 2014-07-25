@@ -82,7 +82,7 @@
       document.body.appendChild(spinner.el);
 
       // Load json
-      d3.json('./profiles.json', function(err, json) {
+      d3.json('./data/profiles.json', function(err, json) {
         if (err) return window.alert(err);
 
         // Split it up so we can rescore and process again
@@ -102,14 +102,18 @@
         processOptions(data);
 
         // Generate Hexbins
-        generateHexbins(map, dimensions);
+        map.on('viewreset', function() { generateHexbins(map, dimensions); });
 
         // Attach to dc.js renderLet
         [ charts.mode, charts.score, charts.time, charts.speed ].forEach(function(chart) {
           chart.renderlet(function(c) {
-            console.log('renderlet...');
             dc.events.trigger(function() {
               console.log('trigger!');
+
+              // Rescore all the records
+              rescore(data);
+
+              // Redraw the hexbins
               generateHexbins(map, dimensions);
             });
           });
@@ -235,6 +239,7 @@
         var $map = document.getElementById('map');
         var rmax = (bounds.getNorth() - bounds.getSouth()) / 30;
 
+        // Allllll
         var data = dimensions.origin.top(Infinity);
 
         // Generate hexbins
