@@ -1,0 +1,73 @@
+#!/usr/bin/env node
+
+var args = require('minimist')(process.argv.slice(2));
+var debug = require('debug')('regional-commute-analysis:shp2centroid');
+var d3 = require('d3');
+var fs = require('fs');
+var Progress = require('progress');
+var shapefile = require('shapefile');
+
+var inputfile = args._[0];
+var outputfile = args._[1];
+
+var centroids = !fs.existsSync(outputfile)
+  ? {}
+  : JSON.parse(fs.readFileSync(outputfile), { encoding: 'utf8' });
+
+var nw = JSON.parse(args.nw);
+var se = JSON.parse(args.se);
+
+debug('parsing %s', inputfile);
+
+/**
+ * Read the entire shapefile in for now
+ */
+
+var count = 0;
+var reader = shapefile.reader(inputfile);
+reader.readHeader(function(err, header) {
+  error(err);
+  next();
+
+  function next() {
+    reader.readRecord(function(err, record) {
+      if (err) return done(err);
+      if (record === shapefile.end) return done();
+
+      var center = d3.geo.centroid(record);
+
+      // Check if it's out of bounds
+      if (center[0] < nw[0] // Negative longitude
+        || center[1] > nw[1]
+        || center[0] > se[0]
+        || center[1] < se[1]) return next();
+
+      // Store the GeoID
+      var geoid = record.properties.GEOID;
+      centroids[geoid] = [
+        center[0],
+        center[1],
+        parseInt(geoid)
+      ];
+
+      count++;
+      next();
+    });
+  }
+
+  function done(err) {
+    error(err);
+
+    // Write it out!
+    fs.writeFileSync(outputfile, JSON.stringify(centroids, null, '\t'), { encoding: 'utf8' });
+    debug('added %s records to %s', count, outputfile);
+    process.exit();
+  }
+});
+
+function error(err) {
+  if (err) {
+    console.error(err);
+    process.exit(1);
+  }
+}

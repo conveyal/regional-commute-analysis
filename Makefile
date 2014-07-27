@@ -1,28 +1,44 @@
 
+# FIPS State Codes, DC: 11, MD: 24, VA: 51
+FIPS = 11 24 51
+
+# States
+STATES = dc md va
+
 # From https://www.census.gov/geo/maps-data/data/tiger-line.html
-BLOCKS = \
-	data/blocks/tl_2013_11_tabblock.shp \
-	data/blocks/tl_2013_24_tabblock.shp \
-	data/blocks/tl_2013_51_tabblock.shp
+BLOCKS = $(foreach fip, $(FIPS), data/blocks/tl_2013_$(fip)_tabblock.shp)
 
-CENTROIDS = $(wildcard data/centroids/*.csv)
-
-# FIPS State Codes
-DESTINATIONS = 11,51
+# Bounds - need brackets for the argument parser
+NW = [-77.3,39.1]
+SE = [-76.75,38.75]
 
 # From http://lehd.ces.census.gov/data/
-LODES = \
-	data/lodes/dc_od_main_JT00_2011.csv \
-	data/lodes/dc_od_aux_JT00_2011.csv \
-	data/lodes/md_od_main_JT00_2011.csv \
-	data/lodes/md_od_aux_JT00_2011.csv \
-	data/lodes/va_od_main_JT00_2011.csv \
-	data/lodes/va_od_aux_JT00_2011.csv
+LODES = $(foreach state, $(STATES), \
+	data/lodes/$(state)_od_main_JT00_2011.csv \
+	data/lodes/$(state)_od_aux_JT00_2011.csv)
 
-ODS = $(wildcard data/lodes/*.csv)
+# Modes
+MODES = BICYCLE,BUS,CAR,TRAINISH,WALK
+
+# OTP URL
+OTP_URL = http://localhost:8080
 
 # Minimum # of trips between OD pairs
-TRIPS = 10
+TRIPS = 2
+
+# Start / end times
+START = 07:00
+END = 09:00
+
+# Transit options limit
+LIMIT = 2
+
+# Black magic
+null :=
+space := $(null) #
+comma := ,
+
+all: build profiles
 
 build: components
 	@component build
@@ -30,50 +46,52 @@ build: components
 clean:
 	rm -rf build components
 
+clean-data:
+	rm -rf data/blocks/* data/lodes/* data/centroids.json data/errors.json data/od-pairs.json data/profiles.json
+
 components: node_modules
 	@component install
 
-data/centroids.json:
-	@$(foreach file, $(CENTROIDS), ./bin/add-centroid $(file) data/centroids.json;)
+data/centroids.json: node_modules $(BLOCKS)
+	@$(foreach file, $(BLOCKS), ./bin/shp2centroid $(file) data/centroids.json \
+		--nw $(NW) \
+		--se $(SE);)
 
-# DC: 11, MD: 24, VA: 51
-data/od-pairs.json: data/centroids.json
-	@$(foreach file, $(ODS), ./bin/extract-ods $(file) data/od-pairs.json \
+data/od-pairs.json: node_modules data/centroids.json $(LODES)
+	@$(foreach file, $(LODES), ./bin/extract-ods $(file) data/od-pairs.json \
 		--centroids data/centroids.json \
-		--destinations $(DESTINATIONS) \
+		--destinations $(subst $(space),$(comma),$(FIPS)) \
 		--trips $(TRIPS);)
 
-data/profiles.json: data/od-pairs.json
+data/profiles.json: node_modules data/od-pairs.json
 	@./bin/profile data/od-pairs.json data/profiles.json \
-		--host http://localhost:8080/otp/routers/default \
-		--modes BICYCLE,BUS,CAR,TRAINISH,WALK \
-		--start 07:00 \
-		--end 09:00 \
-		--limit 2 \
+		--host $(OTP_URL)/otp/routers/default \
+		--modes $(MODES) \
+		--start $(START) \
+		--end $(END) \
+		--limit $(LIMIT) \
 		--factors factors.json \
 		--errors data/errors.json
 
-download-blocks: $(BLOCKS)
 data/blocks/%.shp:
 	@wget ftp://ftp2.census.gov/geo/tiger/TIGER2013/TABBLOCK/$(basename $(notdir $@)).zip
-	@unzip $(basename $(notdir $@)).zip $(notdir $@) -d data/blocks
+	@unzip -o $(basename $(notdir $@)).zip -d data/blocks
 	@rm $(basename $(notdir $@)).zip
 
-download-lodes: $(LODES)
 data/lodes/%.csv:
 	@curl http://lehd.ces.census.gov/data/lodes/LODES7/$(word 1, $(subst _, ,$(notdir $@)))/od/$(notdir $@).gz \
 		| gzip --decompress > $@
 
 install: node_modules
 	@mkdir data data/blocks data/centroids data/lodes
+	@npm install component serve to-s3 -g
 
 node_modules:
 	@npm install
-	@npm install component serve -g
 
 profiles: data/profiles.json
 
 push:
 	@to-s3 . commute-analysis.conveyal.com
 
-.PHONY: clean download-blocks download-lodes install profiles push
+.PHONY: clean clean-data install profiles push

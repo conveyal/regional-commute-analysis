@@ -105,17 +105,13 @@
         map.on('viewreset', function() { generateHexbins(map, dimensions); });
 
         // Attach to dc.js renderLet
-        [ charts.mode, charts.score, charts.time, charts.speed ].forEach(function(chart) {
-          chart.renderlet(function(c) {
-            dc.events.trigger(function() {
-              console.log('trigger!');
+        charts.mode.renderlet(function(c) {
+          dc.events.trigger(function() {
+            // Rescore all the records
+            rescore(data);
 
-              // Rescore all the records
-              rescore(data);
-
-              // Redraw the hexbins
-              generateHexbins(map, dimensions);
-            });
+            // Redraw the hexbins
+            generateHexbins(map, dimensions);
           });
         });
       });

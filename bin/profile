@@ -22,12 +22,14 @@ var profiler = new Profiler({
   host: args.host
 });
 var scorer = new ProfileScore(factors);
+var writer = fs.createWriteStream(args._[1], { encoding: 'utf8' });
 
 batch.concurrency(2);
 
 debug('profiling ' + journeys.length + ' journeys');
 
-var errors = [];
+var errorWriter = fs.createWriteStream(args.errors, { encoding: 'utf8' });
+var previous = false;
 var progress = new Progress(':bar', { total: journeys.length });
 
 journeys.forEach(function(journey) {
@@ -48,25 +50,36 @@ journeys.forEach(function(journey) {
       limit: args.limit || 3,
     }, function(err, results) {
       if (err) {
-        errors.push({
+        errorWriter.write(JSON.stringify({
           error: err,
           journey: journey
-        });
-        done();
+        }, 'utf8', function() {
+          done();
+        }));
       } else if (!results || !results.options || results.options.length < 1) {
-        errors.push({
+        errorWriter.write(JSON.stringify({
           error: 'No results returned',
           journey: journey
+        }), 'utf8', function() {
+          done();
         });
-        done();
       } else {
         var options = args.score
           ? scorer.processOptions(results.options)
           : results.options;
 
-        done(null, {
+        options = filterOptions(options);
+
+        var s = JSON.stringify({
           journey: journey,
           options: options
+        });
+
+        if (previous) s = ',' + s;
+
+        previous = true;
+        writer.write(s, 'utf8', function() {
+          done();
         });
       }
     });
@@ -77,11 +90,30 @@ batch.on('progress', function() {
   progress.tick();
 });
 
-batch.end(function(err, results) {
-  if (err) console.error(err);
+writer.write('[', 'utf8', function() {
+  batch.end(function(err, results) {
+    if (err) console.error(err);
 
-  debug('finished with ' + errors.length + ' errors');
+    debug('finished with ' + errors.length + ' errors');
+    fs.writeFileSync(args.errors, JSON.stringify(errors, null, '\t'), { encoding: 'utf8' });
 
-  fs.writeFileSync(args._[1], JSON.stringify(results.filter(function(i) { return !!i; }), null, '\t'), { encoding: 'utf8' });
-  fs.writeFileSync(args.errors, JSON.stringify(errors, null, '\t'), { encoding: 'utf8' });
+    writer.end(']', 'utf8', function() {
+      process.exit();
+    });
+  });
 });
+
+function filterOptions(options) {
+  // Only keep the walkstep distance
+  for (var i = 0; i < options.length; i++) {
+    if (options[i].walkSteps) {
+      options[i].walkSteps = options[i].walkSteps.map(function(step) {
+        return {
+          distance: step.distance
+        };
+      });
+    }
+  }
+
+  return options;
+}
