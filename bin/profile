@@ -24,7 +24,7 @@ var profiler = new Profiler({
 var scorer = new ProfileScore(factors);
 var writer = fs.createWriteStream(args._[1], { encoding: 'utf8' });
 
-batch.concurrency(2);
+batch.concurrency(args.concurrency);
 
 debug('profiling ' + journeys.length + ' journeys');
 
@@ -86,9 +86,7 @@ journeys.forEach(function(journey) {
   });
 });
 
-batch.on('progress', function() {
-  progress.tick();
-});
+batch.on('progress', function() { progress.tick(); });
 
 writer.write('[', 'utf8', function() {
   batch.end(function(err, results) {
