@@ -33,6 +33,9 @@ END = 09:00
 # Transit options limit
 LIMIT = 2
 
+# Concurrency
+CONCURRENCY = 2
+
 # Black magic
 null :=
 space := $(null) #
@@ -65,6 +68,7 @@ data/od-pairs.json: node_modules data/centroids.json $(LODES)
 
 data/profiles.json: node_modules data/od-pairs.json
 	@./bin/profile data/od-pairs.json data/profiles.json \
+		--concurrency $(CONCURRENCY) \
 		--host $(OTP_URL)/otp/routers/default \
 		--modes $(MODES) \
 		--start $(START) \
