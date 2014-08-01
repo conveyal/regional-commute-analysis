@@ -20,7 +20,6 @@ function hexbin(data, opts) {
 
   // Hexbins!
   var hexbin = d3.hexbin()
-    .size([ opts.width, opts.height ])
     .radius(rmax);
   var bins = hexbin(data);
 

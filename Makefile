@@ -1,9 +1,9 @@
 
 # FIPS State Codes, DC: 11, MD: 24, VA: 51
-FIPS = 11 24 51
+FIPS = 11
 
 # States
-STATES = dc md va
+STATES = dc
 
 # From https://www.census.gov/geo/maps-data/data/tiger-line.html
 BLOCKS = $(foreach fip, $(FIPS), data/blocks/tl_2013_$(fip)_tabblock.shp)
@@ -43,7 +43,7 @@ comma := ,
 
 all: build profiles
 
-build: components
+build: components index.js hexbin.js
 	@component build
 
 clean:
@@ -52,7 +52,7 @@ clean:
 clean-data:
 	rm -rf data/blocks/* data/lodes/* data/centroids.json data/errors.json data/od-pairs.json data/profiles.json
 
-components: node_modules
+components: node_modules component.json
 	@component install
 
 data/centroids.json: node_modules $(BLOCKS)
@@ -65,6 +65,7 @@ data/od-pairs.json: node_modules data/centroids.json $(LODES)
 		--centroids data/centroids.json \
 		--destinations $(subst $(space),$(comma),$(FIPS)) \
 		--trips $(TRIPS);)
+	@bin/od-analysis
 
 data/profiles.json: node_modules data/od-pairs.json
 	@./bin/profile data/od-pairs.json data/profiles.json \
@@ -96,6 +97,6 @@ node_modules:
 profiles: data/profiles.json
 
 push:
-	@to-s3 . commute-analysis.conveyal.com
+	@to-s3 . commute-analysis.conveyal.com --ignore bin,components,.git,node_modules --acl public-read
 
 .PHONY: clean clean-data install profiles push

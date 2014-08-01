@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+
+var bars = require('bars');
+var clear = require('clear');
+var haversine = require('haversine');
+var histogram = require('histogram');
+var pairs = require('../data/od-pairs.json');
+
+var bins = [];
+var counts = {};
+var distances = {};
+
+for (var i = 0; i < pairs.length; i++) {
+  var pair = pairs[i];
+  var count = pair[2];
+  var distance = Math.ceil(haversine({
+    longitude: pair[0][0],
+    latitude: pair[0][1]
+  }, {
+    longitude: pair[1][0],
+    latitude: pair[1][1]
+  }));
+
+  counts[count] = counts[count]
+    ? counts[count] + 1
+    : 1;
+
+  distances[distance] = distances[distance]
+    ? distances[distance] + 1
+    : 1;
+}
+
+console.log('\nTrips per block pair:\n');
+console.log(bars(counts));
+
+console.log('\nDistance (km):\n');
+console.log(bars(distances));
+

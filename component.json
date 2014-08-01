@@ -1,10 +1,13 @@
 {
   "name": "regional-commute-analysis",
   "dependencies": {
+    "component/dom": "*",
     "conveyal/otp-profile-score": "*",
     "fgnass/spin.js": "*",
-    "mbostock/d3": "*",
-    "square/crossfilter": "*",
+    "ianstormtaylor/to-title-case": "*",
     "trevorgerhardt/haversine": "*"
-  }
+  },
+  "scripts": [
+    "index.js"
+  ]
 }

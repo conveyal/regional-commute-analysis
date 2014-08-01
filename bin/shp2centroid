@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 var args = require('minimist')(process.argv.slice(2));
-var debug = require('debug')('regional-commute-analysis:shp2centroid');
 var d3 = require('d3');
 var fs = require('fs');
 var Progress = require('progress');
@@ -17,7 +16,7 @@ var centroids = !fs.existsSync(outputfile)
 var nw = JSON.parse(args.nw);
 var se = JSON.parse(args.se);
 
-debug('parsing %s', inputfile);
+console.log('parsing ' + inputfile);
 
 /**
  * Read the entire shapefile in for now
@@ -60,7 +59,7 @@ reader.readHeader(function(err, header) {
 
     // Write it out!
     fs.writeFileSync(outputfile, JSON.stringify(centroids, null, '\t'), { encoding: 'utf8' });
-    debug('added %s records to %s', count, outputfile);
+    console.log('added ' + count + ' records to ' + outputfile);
     process.exit();
   }
 });
