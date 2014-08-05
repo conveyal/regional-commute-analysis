@@ -18,6 +18,14 @@
         width: 100%;
         border-bottom: 4px solid #ddd;
       }
+
+      #modes {
+        margin-bottom: 10px;
+      }
+
+      #modes label {
+        margin-right: 10px;
+      }
     </style>
   </head>
   <body>
@@ -63,14 +71,32 @@
             </div>
             <div class="row">
               <h4 class="col-sm-12">Modes</h4>
-              <div id="modes" class="col-sm-12">
-                <p>
-                  <button type="button" name="bicycle" class="btn btn-primary">Bicycle</button>
-                  <button type="button" name="walk" class="btn btn-primary">Walk</button>
-                  <button type="button" name="bus" class="btn btn-primary">Bus</button>
-                  <button type="button" name="subway" class="btn btn-primary">Subway</button>
-                  <button type="button" name="car" class="btn btn-primary">Car</button>
-                </p>
+              <div id="modes" class="col-sm-12 form-inline">
+                <div class="checkbox">
+                  <label>
+                    <input type="checkbox" name="bicycle" checked> Bicycle
+                  </label>
+                </div>
+                <div class="checkbox">
+                  <label>
+                    <input type="checkbox" name="walk" checked> Walk
+                  </label>
+                </div>
+                <div class="checkbox">
+                  <label>
+                    <input type="checkbox" name="bus" checked> Bus
+                  </label>
+                </div>
+                <div class="checkbox">
+                  <label>
+                    <input type="checkbox" name="subway" checked> Subway
+                  </label>
+                </div>
+                <div class="checkbox">
+                  <label>
+                    <input type="checkbox" name="car" checked> Car
+                  </label>
+                </div>
               </div>
             </div>
             <div class="row">

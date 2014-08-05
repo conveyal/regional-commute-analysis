@@ -65,7 +65,6 @@ d3.json('./data/profiles.json', function(err, j) {
 
   // Show viz & stop spinner
   document.getElementById('viz').style.display = 'block';
-  spinner.stop();
 
   // After displaying, setup the map
   map = L.mapbox.map('map', 'conveyal.gepida3i', {
@@ -82,8 +81,8 @@ d3.json('./data/profiles.json', function(err, j) {
   // Set up factor inputs
   generateInputs(scorer, json, map);
 
-  // Set up the mode toggles
-  modeToggles();
+  // Stop
+  spinner.stop();
 });
 
 function processJson(json, map) {
@@ -313,10 +312,11 @@ function generateInputs(scorer) {
   dom('form').on('submit', function(e) {
     e.preventDefault();
     var changes = false;
+    dom('form .btn-block').toggleClass('active');
 
     var newAllowedModes = [];
-    dom('form button').each(function(button) {
-      if (!button.hasClass('disabled')) {
+    dom('form input[type=checkbox]').each(function(button) {
+      if (button.value()) {
         newAllowedModes.push(button.name());
         if (newAllowedModes.indexOf(button.name()) === -1) changes = true;
       }
@@ -343,6 +343,8 @@ function generateInputs(scorer) {
       allowedModes = newAllowedModes;
       processJson(json, map);
     }
+
+    dom('form .btn-block').toggleClass('active');
   });
 }
 
@@ -356,12 +358,4 @@ function generateInput(id, name, value) {
   dom('<input class="form-control" type="text" name="'
     + name + '" value="' + value + '">')
     .appendTo(group);
-}
-
-function modeToggles() {
-  dom('#modes button').each(function(button) {
-    button.on('click', function(e) {
-      button.toggleClass('disabled');
-    });
-  });
 }
