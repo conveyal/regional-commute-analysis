@@ -5,7 +5,7 @@ var Spinner = require('spin');
 var toTitleCase = require('to-title-case');
 
 // constants
-var height = 150, width = 310, margin = { top: 0, right: 10, bottom: 20, left: 40 };
+var height = 150, width = 290, margin = { top: 0, right: 10, bottom: 20, left: 40 };
 var modes = [ 'car', 'bicycle', 'bus', 'subway', 'walk' ];
 var modesByNumber = {
   car: 0,
@@ -16,7 +16,8 @@ var modesByNumber = {
 };
 
 // globals
-var blocks, data, dimensions = {}, _id, json, map, options;
+var blocks, currentDimension, data, dimensions = {}, _id, json, map, options;
+var allowedModes = [ 'car', 'bicycle', 'bus', 'subway', 'walk' ];
 
 // Expose charts
 var charts = window.charts = {};
@@ -30,17 +31,17 @@ var calScale = d3.scale.sqrt()
 // Scorer to be updated on the fly
 var scorer = new ProfileScorer({
   factors: {
-    bikeParking: 1,
-    calories: 1,
-    carParking: 5,
+    bikeParking: 5,
+    calories: 2,
+    carParking: 8,
     co2: 0.5,
-    cost: 5,
-    transfer: 5
+    cost: 1,
+    transfer: 0
   },
   rates: {
     calsBiking: 10,
     calsWalking: 4.4,
-    carParkingCost: 10,
+    carParkingCost: 15,
     mileageRate: 0.56,
     mpg: 21.4
   },
@@ -80,6 +81,9 @@ d3.json('./data/profiles.json', function(err, j) {
 
   // Set up factor inputs
   generateInputs(scorer, json, map);
+
+  // Set up the mode toggles
+  modeToggles();
 });
 
 function processJson(json, map) {
@@ -95,8 +99,8 @@ function processJson(json, map) {
   options = crossfilter(data);
 
   // Create the dimensions
-  _id = 0;
   dimensions = getDimensions(options);
+  currentDimension = dimensions.mode;
 
   charts.mode = dc.pieChart('#mode-pie-chart')
     .colors(d3.scale.category10())
@@ -132,65 +136,81 @@ function processJson(json, map) {
       return d3.round((d.value.totalScore / d.value.count));
     });
 
+  charts.efficiency = dc.barChart('#efficiency')
+    .height(height)
+    .width(width)
+    .margins(margin)
+    .elasticY(true)
+    .round(Math.round)
+    .x(d3.scale.linear().domain([0, 35]))
+    .dimension(dimensions.efficiency)
+    .group(dimensions.efficiency.group(function(d) {
+      return Math.round(d);
+    }));
+
   charts.count = dc.dataCount('#data-count')
     .dimension(options)
     .group(options.groupAll());
 
   dc.renderAll();
 
+  charts.mode.on('filtered', function() { currentDimension = dimensions.mode; });
+  charts.scoreByMode.on('filtered', function() { currentDimension = dimensions.mode; });
+  charts.score.on('filtered', function() { currentDimension = dimensions.score; });
+  charts.efficiency.on('filtered', function() { currentDimension = dimensions.efficiency; });
+
   // Attach to dc.js renderLet
   charts.mode.renderlet(function(c) {
     dc.events.trigger(function() {
       // Redraw the hexbins
-      generateHexbins(map, dimensions);
+      generateHexbins(map);
     });
   });
 }
 
 function getDimensions(o) {
   return {
-    id: o.dimension(function(d) { return _id++; }),
-    origin: o.dimension(function(d) { return d.journey[0][0]; }),
-    mode: o.dimension(function(d) { return d.mode; }),
-    score: o.dimension(function(d) { return d.score; })
+    efficiency: o.dimension(function(d) { return d[2]; }),
+    mode: o.dimension(function(d) { return d[0]; }),
+    score: o.dimension(function(d) { return d[1]; })
   };
 }
 
 function scoreOptions(d) {
   var data = [];
+  var id = 0;
   for (var i = 0; i < d.length; i++) {
-    var bestScore = Infinity;
-    var bestScoreIndex = 0;
     var bestOption = null;
+    var haversineDistance = haversine(
+      d[i].journey[0][1], d[i].journey[0][0],
+      d[i].journey[1][1], d[i].journey[1][0],
+      true); // in miles
+
     for (var j = 0; j < d[i].options.length; j++) {
-      var option = scorer.processOption(d[i].options[j]);
+      var option = scorer.processOption(clone(d[i].options[j]));
+      if (allowedModes.indexOf(option.mode) === -1) continue;
+
       option.journey = clone(d[i].journey);
-      option.journey[0].origin = 1;
-      option.journey[0].mode = option.mode;
-      option.journey[1].origin = -1;
-      option.journey[1].mode = option.mode;
+      option.haversineDistance = haversineDistance;
 
-      if (option.totalDistance === 0) {
-        option.totalDistance = haversine(
-          option.journey[0][1], option.journey[0][0],
-          option.journey[1][1], option.journey[1][0],
-          true); // in miles
-      }
-
-      if (option.score <= bestScore) {
-        bestOption = option;
-        bestScore = option.score;
-      }
+      if (!bestOption || option.score <= bestOption.score) bestOption = option;
     }
 
     // Only add the best scoring option
-    if (bestOption) data.push(bestOption);
+    if (bestOption) {
+      data.push([
+        bestOption.mode,
+        bestOption.score,
+        bestOption.haversineDistance / (bestOption.time / 60),
+        bestOption.journey
+      ]);
+    }
   }
   return data;
 }
 
 var _polys = [];
-function generateHexbins(map, options) {
+function generateHexbins(map) {
   _polys.forEach(map.removeLayer.bind(map));
 
   var bounds = map.getBounds();
@@ -198,14 +218,22 @@ function generateHexbins(map, options) {
   var rmax = (bounds.getNorth() - bounds.getSouth()) / 50;
 
   // Allllll
-  var data = dimensions.id.top(Infinity);
+  var data = currentDimension.top(Infinity);
 
   // Generate hexbins
-  var hexbins = hexbin(data.map(function(d) {
-    return d.journey[0];
-  }).concat(data.map(function(d) {
-    return d.journey[1];
-  })), {
+  var originsAndDestinations = data.map(function(d) {
+    var j = d[3][0];
+    j.mode = d[0];
+    j.origin = 1;
+    return j;
+  }).concat(data.map(function(d){
+    var j = d[3][1];
+    j.mode = d[0];
+    j.origin = -1;
+    return j;
+  }));
+
+  var hexbins = hexbin(originsAndDestinations, {
     caccessor: function(b) {
       return modesByNumber[b.mode];
     },
@@ -231,13 +259,13 @@ function generateHexbins(map, options) {
 }
 
 function reduceAdd(p, v) {
-  p.totalScore += v.score;
+  p.totalScore += v[1];
   ++p.count;
   return p;
 }
 
 function reduceRemove(p, v) {
-  p.totalScore -= v.score;
+  p.totalScore -= v[1];
   --p.count;
   return p;
 }
@@ -285,6 +313,16 @@ function generateInputs(scorer) {
   dom('form').on('submit', function(e) {
     e.preventDefault();
     var changes = false;
+
+    var newAllowedModes = [];
+    dom('form button').each(function(button) {
+      if (!button.hasClass('disabled')) {
+        newAllowedModes.push(button.name());
+        if (newAllowedModes.indexOf(button.name()) === -1) changes = true;
+      }
+    });
+    if (allowedModes.length !== newAllowedModes.length) changes = true;
+
     dom('input').each(function(input, i) {
       var name = input.name();
       var newVal = parseFloat(input.value());
@@ -300,7 +338,11 @@ function generateInputs(scorer) {
         }
       }
     });
-    if (changes) processJson(json, map);
+
+    if (changes) {
+      allowedModes = newAllowedModes;
+      processJson(json, map);
+    }
   });
 }
 
@@ -314,4 +356,12 @@ function generateInput(id, name, value) {
   dom('<input class="form-control" type="text" name="'
     + name + '" value="' + value + '">')
     .appendTo(group);
+}
+
+function modeToggles() {
+  dom('#modes button').each(function(button) {
+    button.on('click', function(e) {
+      button.toggleClass('disabled');
+    });
+  });
 }

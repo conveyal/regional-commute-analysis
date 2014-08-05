@@ -28,6 +28,8 @@
           <div id="data-count" class="col-sm-12">
             <h4><strong class="filter-count"></strong> selected out of <strong class="total-count"></strong> records</h4>
           </div>
+        </div>
+        <div class="row">
           <div id="mode-pie-chart" class="col-sm-2">
             <strong>Mode</strong>
             <a class="reset" href="javascript:charts.mode.filterAll();dc.redrawAll();" style="display:none;">reset</a>
@@ -44,15 +46,37 @@
             <a class="reset" href="javascript:charts.scoreByMode.filterAll();dc.redrawAll();" style="display:none;">reset</a>
             <div class="clearfix"></div>
           </div>
+          <div id="efficiency" class="col-sm-4">
+            <strong>Efficiency (d/t)</strong>
+            <a class="reset" href="javascript:charts.efficiency.filterAll();dc.redrawAll();" style="display:none;">reset</a>
+            <div class="clearfix"></div>
+          </div>
         </div>
-        <div class="row">
           <form role="form">
-            <h4 class="col-sm-12">Factors <small>(add/subtract x minutes per y)</small></h4>
-            <div id="factors"></div>
-            <h4 class="col-sm-12">Rates <small>($, cals, miles per gallon)</small></h4>
-            <div id="rates"></div>
-            <div class="col-sm-12">
-              <button class="btn btn-primary btn-block" role="submit">Update</button>
+            <div class="row">
+              <h4 class="col-sm-12">Factors <small>(add/subtract x minutes per y)</small></h4>
+              <div id="factors"></div>
+            </div>
+            <div class="row">
+              <h4 class="col-sm-12">Rates <small>($, cals, miles per gallon)</small></h4>
+              <div id="rates"></div>
+            </div>
+            <div class="row">
+              <h4 class="col-sm-12">Modes</h4>
+              <div id="modes" class="col-sm-12">
+                <p>
+                  <button type="button" name="bicycle" class="btn btn-primary">Bicycle</button>
+                  <button type="button" name="walk" class="btn btn-primary">Walk</button>
+                  <button type="button" name="bus" class="btn btn-primary">Bus</button>
+                  <button type="button" name="subway" class="btn btn-primary">Subway</button>
+                  <button type="button" name="car" class="btn btn-primary">Car</button>
+                </p>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-sm-12">
+                <button class="btn btn-primary btn-block" role="submit">Reload Data</button>
+              </div>
             </div>
           </form>
         </div>
