@@ -41,8 +41,6 @@ null :=
 space := $(null) #
 comma := ,
 
-all: build profiles
-
 build: components index.js hexbin.js
 	@component build
 
@@ -97,6 +95,9 @@ node_modules:
 profiles: data/profiles.json
 
 push:
-	@to-s3 . commute-analysis.conveyal.com --ignore bin,components,.git,node_modules --acl public-read
+	@to-s3 . commute-analysis.conveyal.com \
+		--ignore ./bin,components,data/blocks,data/centroids,data/lodes,data/od-pairs,.git,node_modules,.DS_Store \
+		--acl public-read \
+		--verbose
 
 .PHONY: clean clean-data install profiles push

@@ -116,6 +116,7 @@ function filterOptions(options) {
           segmentPatterns: segment.segmentPatterns.map(function(p) { return { nTrips: p.nTrips };}),
           walkDistance: segment.walkDistance,
           waitStats: segment.waitStats,
+          walkTime: segment.walkTime
         };
       });
     }

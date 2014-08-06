@@ -5,19 +5,21 @@ var Spinner = require('spin');
 var toTitleCase = require('to-title-case');
 
 // constants
-var height = 150, width = 290, margin = { top: 0, right: 10, bottom: 20, left: 40 };
-var modes = [ 'car', 'bicycle', 'bus', 'subway', 'walk' ];
-var modesByNumber = {
-  car: 0,
-  bicycle: 1,
-  bus: 2,
-  subway: 3,
-  walk: 4
-};
+var height = 150,
+  width = 290,
+  margin = {
+    top: 0,
+    right: 10,
+    bottom: 20,
+    left: 40
+  };
+var modes = ['car', 'bicycle', 'bus', 'subway', 'walk'];
+var colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
 
 // globals
-var blocks, currentDimension, data, dimensions = {}, _id, json, map, options;
-var allowedModes = [ 'car', 'bicycle', 'bus', 'subway', 'walk' ];
+var blocks, currentDimension, data, dimensions = {},
+  _id, json, map, options;
+var allowedModes = modes.slice();
 
 // Expose charts
 var charts = window.charts = {};
@@ -25,7 +27,7 @@ var charts = window.charts = {};
 // Calories scale
 var calScale = d3.scale.sqrt()
   .domain([0, 60, 120])
-  .range([ 0, 1, 0 ])
+  .range([0, 1, 0])
   .exponent(2);
 
 // Scorer to be updated on the fly
@@ -51,15 +53,12 @@ var scorer = new ProfileScorer({
   }
 });
 
-// Mode color scale
-var modeColorScale = d3.scale.category10();
-
 // Show spinner cause loading takes awhile
 var spinner = new Spinner().spin();
 document.body.appendChild(spinner.el);
 
 // Load json
-d3.json('./data/profiles.json', function(err, j) {
+d3.json('data/profiles.json', function(err, j) {
   if (err) return window.alert(err);
   json = j;
 
@@ -70,10 +69,12 @@ d3.json('./data/profiles.json', function(err, j) {
   map = L.mapbox.map('map', 'conveyal.gepida3i', {
     touchZoom: false,
     scrollWheelZoom: false
-  }).setView([38.8399874, -77.0911667], 9);
+  }).setView([38.8399874, -77.0911667], 11);
 
   // Generate Hexbins
-  map.on('viewreset', function() { generateHexbins(map, dimensions); });
+  map.on('viewreset', function() {
+    generateHexbins(map, dimensions);
+  });
 
   // Crossfilterize
   processJson(json, map);
@@ -102,8 +103,10 @@ function processJson(json, map) {
   currentDimension = dimensions.mode;
 
   charts.mode = dc.pieChart('#mode-pie-chart')
-    .colors(d3.scale.category10())
-    .colorAccessor(function(d, i) { return modesByNumber[d.data.key]; })
+    .colors(colors)
+    .colorAccessor(function(d, i) {
+      return modes.indexOf(d.data.key);
+    })
     .height(height)
     .dimension(dimensions.mode)
     .group(dimensions.mode.group());
@@ -117,9 +120,7 @@ function processJson(json, map) {
     .x(d3.scale.linear().domain([0, 250]))
     .dimension(dimensions.score)
     .group(dimensions.score.group(function(d) {
-      return d === Infinity
-        ? 250
-        : Math.round(d / 2) * 2;
+      return d === Infinity ? 250 : Math.round(d / 2) * 2;
     }));
 
   charts.scoreByMode = dc.rowChart('#score-by-mode')
@@ -127,10 +128,13 @@ function processJson(json, map) {
     .width(width)
     .margins(margin)
     .elasticX(true)
-    .colors(d3.scale.category10())
-    .colorAccessor(function(d) { return modesByNumber[d.key]; })
+    .colors(colors)
+    .colorAccessor(function(d) {
+      return modes.indexOf(d.key);
+    })
     .dimension(dimensions.mode)
-    .group(dimensions.mode.group().reduce(reduceAdd, reduceRemove, reduceInitial))
+    .group(dimensions.mode.group().reduce(reduceAdd, reduceRemove,
+      reduceInitial))
     .valueAccessor(function(d) {
       return d3.round((d.value.totalScore / d.value.count));
     });
@@ -153,10 +157,18 @@ function processJson(json, map) {
 
   dc.renderAll();
 
-  charts.mode.on('filtered', function() { currentDimension = dimensions.mode; });
-  charts.scoreByMode.on('filtered', function() { currentDimension = dimensions.mode; });
-  charts.score.on('filtered', function() { currentDimension = dimensions.score; });
-  charts.efficiency.on('filtered', function() { currentDimension = dimensions.efficiency; });
+  charts.mode.on('filtered', function() {
+    currentDimension = dimensions.mode;
+  });
+  charts.scoreByMode.on('filtered', function() {
+    currentDimension = dimensions.mode;
+  });
+  charts.score.on('filtered', function() {
+    currentDimension = dimensions.score;
+  });
+  charts.efficiency.on('filtered', function() {
+    currentDimension = dimensions.efficiency;
+  });
 
   // Attach to dc.js renderLet
   charts.mode.renderlet(function(c) {
@@ -169,9 +181,15 @@ function processJson(json, map) {
 
 function getDimensions(o) {
   return {
-    efficiency: o.dimension(function(d) { return d[2]; }),
-    mode: o.dimension(function(d) { return d[0]; }),
-    score: o.dimension(function(d) { return d[1]; })
+    efficiency: o.dimension(function(d) {
+      return d[2];
+    }),
+    mode: o.dimension(function(d) {
+      return d[0];
+    }),
+    score: o.dimension(function(d) {
+      return d[1];
+    })
   };
 }
 
@@ -209,6 +227,7 @@ function scoreOptions(d) {
 }
 
 var _polys = [];
+
 function generateHexbins(map) {
   _polys.forEach(map.removeLayer.bind(map));
 
@@ -225,7 +244,7 @@ function generateHexbins(map) {
     j.mode = d[0];
     j.origin = 1;
     return j;
-  }).concat(data.map(function(d){
+  }).concat(data.map(function(d) {
     var j = d[3][1];
     j.mode = d[0];
     j.origin = -1;
@@ -234,11 +253,13 @@ function generateHexbins(map) {
 
   var hexbins = hexbin(originsAndDestinations, {
     caccessor: function(b) {
-      return modesByNumber[b.mode];
+      return modes.indexOf(b.mode);
     },
     cscale: function(bs) {
       setBinsMode(bs);
-      return modeColorScale;
+      return function(n) {
+        return colors[n];
+      };
     },
     height: $map.clientHeight,
     rmax: rmax,
@@ -279,7 +300,7 @@ function reduceInitial() {
 function setBinsMode(bs) {
   for (var i = 0; i < bs.length; i++) {
     var b = bs[i];
-    var modes = {
+    var modeCount = {
       car: 0,
       subway: 0,
       bus: 0,
@@ -289,15 +310,16 @@ function setBinsMode(bs) {
     var maxMode = 'car';
     for (var j = 0; j < b.length; j++) {
       var mode = b[j].mode;
-      modes[mode]++;
-      if (modes[mode] >= modes[maxMode]) maxMode = mode;
+      modeCount[mode]++;
+      if (modeCount[mode] >= modeCount[maxMode]) maxMode = mode;
     }
+
     b.mode = maxMode;
   }
 }
 
 function clone(obj) {
-  if (obj == null || typeof(obj) != 'object')
+  if (obj === null || typeof(obj) != 'object')
     return obj;
 
   var temp = obj.constructor();
@@ -352,10 +374,10 @@ function generateInput(id, name, value) {
   var group = dom('<div class="form-group col-sm-2"></div>')
     .appendTo(id);
 
-  dom('<label for="' + name +'">' + toTitleCase(name) + '</label>')
+  dom('<label for="' + name + '">' + toTitleCase(name) + '</label>')
     .appendTo(group);
 
-  dom('<input class="form-control" type="text" name="'
-    + name + '" value="' + value + '">')
+  dom('<input class="form-control" type="text" name="' + name + '" value="' +
+    value + '">')
     .appendTo(group);
 }
