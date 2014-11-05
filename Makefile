@@ -1,9 +1,9 @@
 
 # FIPS State Codes, DC: 11, MD: 24, VA: 51
-FIPS = 11
+FIPS = 11 24 51
 
 # States
-STATES = dc
+STATES = dc va md
 
 # From https://www.census.gov/geo/maps-data/data/tiger-line.html
 BLOCKS = $(foreach fip, $(FIPS), data/blocks/tl_2013_$(fip)_tabblock.shp)
@@ -18,16 +18,19 @@ LODES = $(foreach state, $(STATES), \
 	data/lodes/$(state)_od_aux_JT00_2011.csv)
 
 # Modes
-MODES = BICYCLE,BUS,CAR,TRAINISH,WALK
+ACCESS_MODES = WALK,CAR,BICYCLE
+EGRESS_MODES = WALK
+DIRECT_MODES = BICYCLE,CAR,WALK
+TRANSIT_MODES = BUS,TRAINISH
 
 # OTP URL
-OTP_URL = http://localhost:8080
+OTP_URL = http://192.168.59.103:8080
 
 # Minimum # of trips between OD pairs
-TRIPS = 2
+TRIPS = 15
 
 # Start / end times
-START = 07:00
+START = 06:00
 END = 09:00
 
 # Transit options limit
@@ -65,6 +68,13 @@ data/od-pairs.json: node_modules data/centroids.json $(LODES)
 		--trips $(TRIPS);)
 	@bin/od-analysis
 
+data/access-mode-diff.json: node_modules data/od-pairs.json
+	@./bin/access-mode-diff data/od-pairs.json data/access-mode-diff.json \
+		--concurrency $(CONCURRENCY) \
+		--host $(OTP_URL)/otp/routers/default \
+		--start $(START) \
+		--end $(END)
+
 data/profiles.json: node_modules data/od-pairs.json
 	@./bin/profile data/od-pairs.json data/profiles.json \
 		--concurrency $(CONCURRENCY) \
@@ -72,7 +82,6 @@ data/profiles.json: node_modules data/od-pairs.json
 		--modes $(MODES) \
 		--start $(START) \
 		--end $(END) \
-		--limit $(LIMIT) \
 		--factors factors.json \
 		--errors data/errors.json
 
@@ -86,8 +95,8 @@ data/lodes/%.csv:
 		| gzip --decompress > $@
 
 install: node_modules
-	@mkdir data data/blocks data/centroids data/lodes
-	@npm install component serve to-s3 -g
+	@mkdir data data/blocks data/centroids data/lodes || true
+	@npm install component serve -g
 
 node_modules:
 	@npm install

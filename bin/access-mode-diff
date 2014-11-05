@@ -1,0 +1,114 @@
+#!/usr/bin/env node
+
+var args = require('minimist')(process.argv.slice(2), {
+  string: [ 'start', 'end' ]
+});
+
+var Batch = require('batch');
+var resolve = require('path').resolve;
+var factors = args.factors
+  ? require(resolve(args.factors))
+  : null;
+
+var fs = require('fs');
+var journeys = require(resolve(args._[0]));
+var Profiler = require('otp-profiler');
+var Progress = require('progress');
+
+var batch = new Batch();
+var profiler = new Profiler({
+  host: args.host
+});
+var fd = fs.openSync(args._[1], 'a');
+
+batch.concurrency(args.concurrency);
+
+console.log('profiling ' + journeys.length + ' journeys');
+
+var previous = false;
+var progress = new Progress(':bar', { total: journeys.length });
+
+journeys.forEach(function(journey) {
+  batch.push(function(done) {
+    profileJourney(journey, done);
+  });
+});
+
+batch.on('progress', function() { progress.tick(); });
+
+var openingBracket = new Buffer('[', 'utf8');
+var closingBracket = new Buffer(']', 'utf8');
+
+fs.writeSync(fd, openingBracket, 0, openingBracket.length, null);
+
+batch.end(function(err, results) {
+  if (err) console.error(err);
+
+  fs.writeSync(fd, closingBracket, 0, closingBracket.length, null);
+  fs.closeSync(fd);
+
+  console.log('completed');
+  process.exit();
+});
+
+function profileJourney(journey, complete) {
+  var batch = new Batch();
+  batch.push(function(done) {
+    profile(journey, 'WALK', done);
+  });
+
+  batch.push(function(done) {
+    profile(journey, 'BICYCLE', done);
+  });
+
+  batch.end(function(err, results) {
+    if (err) return complete(err);
+
+    var noBike = results[0];
+    var bike = results[1];
+
+    if (bike && noBike) {
+      var bikeOpt = bike[1];
+      var noBikeOpt = noBike[1];
+      var data = {
+        trip: journey,
+        bike: 0,
+        walk: 0
+      };
+
+      if (bikeOpt) data.bike = bikeOpt.stats.avg;
+      if (noBikeOpt) data.walk = noBikeOpt.stats.avg;
+
+      console.log(JSON.stringify(data, null, '\t'));
+      process.exit();
+
+      var s = previous ? ',' : '';
+      var buffer = new Buffer(s + JSON.stringify(data), 'utf8');
+
+      previous = true;
+      fs.write(fd, buffer, 0, buffer.length, null, complete);
+    } else {
+      complete(new Error('No objects returned'));
+    }
+  });
+}
+
+function profile(journey, accessModes, done) {
+  profiler.profile({
+    from: {
+      lon: journey[0][0],
+      lat: journey[0][1]
+    },
+    to: {
+      lon: journey[1][0],
+      lat: journey[1][1]
+    },
+    accessModes: accessModes,
+    directModes: '',
+    egressModes: 'WALK',
+    transitModes: 'BUS,TRAINISH',
+    startTime: args.start,
+    endTime: args.end,
+    limit: 1
+  }, done);
+}
