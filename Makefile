@@ -64,8 +64,8 @@ data/centroids.json: node_modules $(BLOCKS)
 		--nw $(NW) \
 		--se $(SE);)
 
-data/od-pairs.json: node_modules data/centroids.json $(LODES)
-	@$(foreach file, $(LODES), ./bin/extract-ods $(file) data/od-pairs.json \
+data/od-pairs.csv: node_modules data/centroids.json $(LODES)
+	@$(foreach file, $(LODES), ./bin/extract-ods $(file) data/od-pairs.csv \
 		--centroids data/centroids.json \
 		--destinations $(subst $(space),$(comma),$(FIPS)) \
 		--minDistance $(MIN_DISTANCE) \

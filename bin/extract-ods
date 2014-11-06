@@ -17,12 +17,21 @@ var minTrips = parseInt(args.trips); // Minimum required paired trips
 var minDistance = parseInt(args.minDistance) || 0;
 var maxDistance = parseInt(args.maxDistance) || Infinity;
 
-var pairs = !fs.existsSync(outputFile)
-  ? []
-  : JSON.parse(fs.readFileSync(outputFile, { encoding: 'utf8' }));
-
 var file = fs.readFileSync(inputFile, { encoding: 'utf8' });
 var lines = file.split('\n').slice(1);
+var pairs = '';
+
+var addHeader = !fs.existsSync(outputFile);
+if (addHeader) {
+  pairs += [
+    'flng',
+    'flat',
+    'tlng',
+    'tlat',
+    'distance',
+    'trips'
+  ].join(',');
+}
 
 for (var i = 0; i < lines.length; i++) lines[i] = lines[i].split(',');
 
@@ -48,9 +57,16 @@ lines.forEach(function(line) {
 
   if (distance > maxDistance || distance < minDistance) return;
 
-  pairs.push([o, d, trips, distance]);
+  pairs += '\n' + [
+    o[0],
+    o[1],
+    d[0],
+    d[1],
+    trips,
+    distance
+  ].join(',');
 });
 
-console.log(pairs.length + ' journeys found in ' + inputFile);
+console.log(pairs.split('\n').length + ' journeys found in ' + inputFile);
 
-fs.writeFileSync(outputFile, JSON.stringify(pairs), { encoding: 'utf8' });
+fs.appendFileSync(outputFile, pairs, { encoding: 'utf8' });

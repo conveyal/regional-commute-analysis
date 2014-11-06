@@ -2,24 +2,21 @@
 
 var bars = require('bars');
 var clear = require('clear');
+var fs = require('fs');
 var haversine = require('haversine');
 var histogram = require('histogram');
-var pairs = require('../data/od-pairs.json');
+var resolve = require('path').resolve;
+
+var pairs = fs.readFileSync(resolve(__dirname + '/../data/od-pairs.csv'), { encoding: 'utf8' }).split('\n').slice(1);
 
 var bins = [];
 var counts = {};
 var distances = {};
 
 for (var i = 0; i < pairs.length; i++) {
-  var pair = pairs[i];
-  var count = pair[2];
-  var distance = Math.ceil(haversine({
-    longitude: pair[0][0],
-    latitude: pair[0][1]
-  }, {
-    longitude: pair[1][0],
-    latitude: pair[1][1]
-  }));
+  var pair = pairs[i].split(',');
+  var count = pair[4];
+  var distance = Math.ceil(pair[5]);
 
   counts[count] = counts[count]
     ? counts[count] + 1
@@ -29,6 +26,8 @@ for (var i = 0; i < pairs.length; i++) {
     ? distances[distance] + 1
     : 1;
 }
+
+console.log('\nTotal pairs:', pairs.length);
 
 console.log('\nTrips per block pair:\n');
 console.log(bars(counts));
