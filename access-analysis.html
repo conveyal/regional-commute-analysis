@@ -1,0 +1,288 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="//api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.css">
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/dc/1.6.0/dc.css">
+    <style>
+      body {
+        padding-bottom: 400px;
+      }
+
+      .dc-table-group {
+        display: none;
+      }
+
+      #map {
+        height: 400px;
+        width: 100%;
+        border-bottom: 4px solid #ddd;
+      }
+
+      #modes {
+        margin-bottom: 10px;
+      }
+
+      #modes label {
+        margin-right: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viz" style="display:none;">
+      <div id="map"></div>
+      <div class="container">
+        <div class="row">
+          <div id="data-count" class="col-sm-6">
+            <h4><strong class="filter-count"></strong> selected out of <strong class="total-count"></strong> records</h4>
+          </div>
+          <div id="stats" class="col-sm-6">
+            <h4 class="pull-right"><strong class="time-saved"></strong> minutes saved on average</h4>
+          </div>
+        </div>
+        <div class="row">
+          <div id="distance-chart" class="col-sm-6">
+            <strong>Distance</strong>
+            <span class="filter"></span>
+            <a class="reset" href="javascript:charts.distance.filterAll();dc.redrawAll();" style="display:none;">reset</a>
+            <div class="clearfix"></div>
+          </div>
+          <div id="impact-chart" class="col-sm-6">
+            <strong>Time Impact</strong>
+            <a class="reset" href="javascript:charts.impact.filterAll();dc.redrawAll();" style="display:none;">reset</a>
+            <div class="clearfix"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="//api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.4.13/d3.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/crossfilter/1.3.7/crossfilter.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/dc/1.6.0/dc.js"></script>
+    <script src="http://d3js.org/colorbrewer.v1.min.js"></script>
+    <script src="d3.hexbin.v0.min.js"></script>
+    <script src="hexbin.js"></script>
+    <script>
+      // constants
+      var height = 150,
+        width = 470,
+        margin = {
+          top: 0,
+          right: 10,
+          bottom: 20,
+          left: 40
+        };
+
+      var colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
+
+      // globals
+      var blocks, currentDimension, data, dimensions = {},
+        _id, json, map, options;
+
+      // Expose charts
+      var charts = window.charts = {};
+
+      // Load json
+      d3.csv('data/access-mode-diff.json', function(d) {
+        return {
+          bike: +d.bike,
+          trip: [
+            [ +d.flng, +d.flat ],
+            [ +d.tlng, +d.tlat ],
+            +d.trips,
+            +d.distance
+          ],
+          walk: +d.walk
+        };
+      }, function(err, j) {
+        if (err) console.error(err);
+
+        // Filter legs where bike is less than walk...for now
+        json = j.filter(function(r) {
+          if (r.walk === 0) r.walk = r.bike * 2;
+          return r.bike < r.walk;
+        });
+
+        // Duplicate records based on # of trips
+        json.forEach(function(r) {
+          for (var i = 1; i < r.trip[2]; i++) {
+            json.push(clone(r));
+          }
+        });
+
+        // Show viz & stop spinner
+        document.getElementById('viz').style.display = 'block';
+
+        // After displaying, setup the map
+        map = L.mapbox.map('map', 'conveyal.gepida3i', {
+          touchZoom: false,
+          scrollWheelZoom: false
+        }).setView([38.8399874, -77.0911667], 11);
+
+        // Generate Hexbins
+        map.on('viewreset', function() {
+          generateHexbins(map, dimensions);
+        });
+
+        // Crossfilterize
+        processJson(json, map);
+      });
+
+      function processJson(json, map) {
+        // Dispose of all dimensions
+        for (var d in dimensions) dimensions[d].dispose();
+
+        // Remove all current data
+        if (options) options.remove();
+
+        // Create the crossfilter instance
+        options = crossfilter(json);
+
+        // Create the dimensions
+        dimensions = getDimensions(options);
+        currentDimension = dimensions.distance;
+
+        charts.distance = dc.lineChart('#distance-chart')
+          .height(height)
+          .width(width)
+          .margins(margin)
+          .x(d3.scale.linear().domain([10, 40]))
+          .elasticY(true)
+          .round(Math.round)
+          .dimension(dimensions.distance)
+          .group(dimensions.distance.group(function(d) {
+            return Math.round(d);
+          }));
+
+        charts.impact = dc.barChart('#impact-chart')
+          .height(height)
+          .width(width)
+          .margins(margin)
+          .round(Math.round)
+          .x(d3.scale.linear().domain([0, 40]))
+          .dimension(dimensions.impact)
+          .group(dimensions.impact.group(function(d) {
+            return Math.round(d);
+          }));
+
+        charts.count = dc.dataCount('#data-count')
+          .dimension(options)
+          .group(options.groupAll());
+
+        dc.renderAll();
+
+        charts.distance.on('filtered', function() {
+          currentDimension = dimensions.distance;
+        });
+        charts.impact.on('filtered', function() {
+          currentDimension = dimensions.impact;
+        });
+
+        // Attach to dc.js renderLet
+        charts.distance.renderlet(function(c) {
+          dc.events.trigger(function() {
+            // Redraw the hexbins
+            generateHexbins(map);
+
+            // Show stats
+            showStats(currentDimension.top(Infinity));
+          });
+        });
+      }
+
+      function showStats(rows) {
+        var averageTripLength = d3.mean(rows, function(r) {
+          return r.bike;
+        });
+        var averageDistance = d3.mean(rows, function(r) {
+          return r.trip[3];
+        });
+        var averageTimeSavings = d3.mean(rows, function(r) {
+          return (r.walk - r.bike) / 60;
+        });
+
+        var el = document.querySelector('.time-saved');
+        el.textContent = Math.round(averageTimeSavings);
+      }
+
+      function getDimensions(o) {
+        return {
+          distance: o.dimension(function(d) {
+            return d.trip[3];
+          }),
+          impact: o.dimension(function(d) {
+            return (d.walk - d.bike) / 60;
+          })
+        };
+      }
+
+      var _polys = [];
+
+      function generateHexbins(map) {
+        _polys.forEach(map.removeLayer.bind(map));
+
+        var bounds = map.getBounds();
+        var $map = document.getElementById('map');
+        var rmax = (bounds.getNorth() - bounds.getSouth()) / 30;
+
+        // Allllll
+        var data = currentDimension.top(Infinity);
+
+        // Generate hexbins
+        var origins = data.map(function(d) {
+          var j = d.trip[0];
+          j.impact = (d.walk - d.bike) / 60;
+          j.origin = 1;
+          return j;
+        });
+
+        var hexbins = hexbin(origins, {
+          caccessor: function(b) {
+            return b.impact;
+          },
+          cscale: function(bs) {
+            var min = Infinity;
+            var max = -Infinity;
+            bs.forEach(function(b) {
+              b.impact = b.reduce(function(v, j) {
+                return v + j.impact;
+              }, 0);
+              if (b.impact < min) min = b.impact;
+              if (b.impact > max) max = b.impact;
+            });
+
+            return d3.scale.log()
+              .domain([ min, max ])
+              .range([ '#d9534f', '#428bca' ]);
+
+          },
+          height: $map.clientHeight,
+          rmax: rmax,
+          width: $map.clientWidth
+        });
+
+        _polys = hexbins.map(function(d) {
+          return L.polygon(d.coords, {
+            stroke: true,
+            weight: 1,
+            color: '#e5e5e5',
+            fill: true,
+            fillOpacity: 0.75,
+            fillColor: d.color
+          }).addTo(map);
+        });
+      }
+
+      function clone(obj) {
+        if (obj === null || typeof(obj) != 'object')
+          return obj;
+
+        var temp = obj.constructor();
+        for (var key in obj) temp[key] = clone(obj[key]);
+        return temp;
+      }
+    </script>
+  </body>
+</html>

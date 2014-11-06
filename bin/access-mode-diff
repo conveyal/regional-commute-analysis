@@ -21,6 +21,13 @@ var profiler = new Profiler({
 });
 var fd = fs.openSync(args._[1], 'a');
 
+var stats = {
+  errors: 0,
+  noResults: 0,
+  noRoute: 0,
+  noWalk: 0
+};
+
 batch.concurrency(args.concurrency);
 
 console.log('profiling ' + journeys.length + ' journeys');
@@ -36,18 +43,13 @@ journeys.forEach(function(journey) {
 
 batch.on('progress', function() { progress.tick(); });
 
-var openingBracket = new Buffer('[', 'utf8');
-var closingBracket = new Buffer(']', 'utf8');
-
-fs.writeSync(fd, openingBracket, 0, openingBracket.length, null);
-
 batch.end(function(err, results) {
   if (err) console.error(err);
 
-  fs.writeSync(fd, closingBracket, 0, closingBracket.length, null);
   fs.closeSync(fd);
 
-  console.log('completed');
+  console.log('stats:');
+  console.log(JSON.stringify(stats, null, '\t'));
   process.exit();
 });
 
@@ -62,34 +64,41 @@ function profileJourney(journey, complete) {
   });
 
   batch.end(function(err, results) {
-    if (err) return complete(err);
-
-    var noBike = results[0];
-    var bike = results[1];
-
-    if (bike && noBike) {
-      var bikeOpt = bike[1];
-      var noBikeOpt = noBike[1];
-      var data = {
-        trip: journey,
-        bike: 0,
-        walk: 0
-      };
-
-      if (bikeOpt) data.bike = bikeOpt.stats.avg;
-      if (noBikeOpt) data.walk = noBikeOpt.stats.avg;
-
-      console.log(JSON.stringify(data, null, '\t'));
-      process.exit();
-
-      var s = previous ? ',' : '';
-      var buffer = new Buffer(s + JSON.stringify(data), 'utf8');
-
-      previous = true;
-      fs.write(fd, buffer, 0, buffer.length, null, complete);
-    } else {
-      complete(new Error('No objects returned'));
+    if (err) {
+      stats.errors++;
+      return complete();
+    } else if (!results) {
+      stats.noResults++;
+      return complete();
     }
+
+    var walk = results[0].options || [];
+    var bike = results[1].options || [];
+
+    var bikeOpt = bike[1];
+    var walkOpt = walk[1];
+
+    if (!bikeOpt) {
+      stats.noRoute++;
+      return complete();
+    }
+
+    var data = {
+      trip: journey,
+      bike: bikeOpt.stats.avg,
+      walk: 0
+    };
+
+    if (walkOpt) data.walk = walkOpt.stats.avg || 0;
+    else stats.noWalk++;
+
+    var csv = [ journey[0][0], journey[0][1], journey[1][0], journey[1][1], journey[2], journey[3], data.bike, data.walk ];
+
+    var s = previous ? '\n' : '';
+    var buffer = new Buffer(s + csv.join(','), 'utf8');
+
+    previous = true;
+    fs.write(fd, buffer, 0, buffer.length, null, complete);
   });
 }
 
@@ -104,7 +113,7 @@ function profile(journey, accessModes, done) {
       lat: journey[1][1]
     },
     accessModes: accessModes,
-    directModes: '',
+    directModes: 'WALK,BICYCLE',
     egressModes: 'WALK',
     transitModes: 'BUS,TRAINISH',
     startTime: args.start,

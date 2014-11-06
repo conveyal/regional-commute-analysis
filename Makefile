@@ -27,7 +27,10 @@ TRANSIT_MODES = BUS,TRAINISH
 OTP_URL = http://192.168.59.103:8080
 
 # Minimum # of trips between OD pairs
-TRIPS = 15
+TRIPS = 3
+
+# Minimum distance
+MIN_DISTANCE = 10
 
 # Start / end times
 START = 06:00
@@ -37,7 +40,7 @@ END = 09:00
 LIMIT = 2
 
 # Concurrency
-CONCURRENCY = 2
+CONCURRENCY = 1
 
 # Black magic
 null :=
@@ -65,6 +68,7 @@ data/od-pairs.json: node_modules data/centroids.json $(LODES)
 	@$(foreach file, $(LODES), ./bin/extract-ods $(file) data/od-pairs.json \
 		--centroids data/centroids.json \
 		--destinations $(subst $(space),$(comma),$(FIPS)) \
+		--minDistance $(MIN_DISTANCE) \
 		--trips $(TRIPS);)
 	@bin/od-analysis
 
