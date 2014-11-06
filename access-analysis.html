@@ -98,15 +98,11 @@
         };
       }, function(err, j) {
         if (err) console.error(err);
-
-        // Filter legs where bike is less than walk...for now
-        json = j.filter(function(r) {
-          if (r.walk === 0) r.walk = r.bike * 2;
-          return r.bike < r.walk;
-        });
+        json = j;
 
         // Duplicate records based on # of trips
         json.forEach(function(r) {
+          if (r.walk === 0) r.walk = r.bike * 2;
           for (var i = 1; i < r.trip[2]; i++) {
             json.push(clone(r));
           }
@@ -225,7 +221,7 @@
 
         var bounds = map.getBounds();
         var $map = document.getElementById('map');
-        var rmax = (bounds.getNorth() - bounds.getSouth()) / 30;
+        var rmax = (bounds.getNorth() - bounds.getSouth()) / 35;
 
         // Allllll
         var data = currentDimension.top(Infinity);
@@ -240,6 +236,7 @@
 
         var hexbins = hexbin(origins, {
           caccessor: function(b) {
+            console.log(b.impact);
             return b.impact;
           },
           cscale: function(bs) {
@@ -253,9 +250,9 @@
               if (b.impact > max) max = b.impact;
             });
 
-            return d3.scale.log()
-              .domain([ min, max ])
-              .range([ '#d9534f', '#428bca' ]);
+            return d3.scale.sqrt()
+              .domain([ min, d3.mean(bs, function(b) { return b.impact; }),  max ])
+              .range([ '#d9534f', '#f0ad4e', '#428bca' ]);
 
           },
           height: $map.clientHeight,

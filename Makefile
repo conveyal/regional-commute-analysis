@@ -1,6 +1,6 @@
 
 # FIPS State Codes, DC: 11, MD: 24, VA: 51
-FIPS = 11 24 51
+FIPS = 51
 
 # States
 STATES = dc va md
@@ -9,8 +9,8 @@ STATES = dc va md
 BLOCKS = $(foreach fip, $(FIPS), data/blocks/tl_2013_$(fip)_tabblock.shp)
 
 # Bounds - need brackets for the argument parser
-NW = [-77.3,39.1]
-SE = [-76.75,38.75]
+NW = [-77.6,39.2]
+SE = [-76.6,38.2]
 
 # From http://lehd.ces.census.gov/data/
 LODES = $(foreach state, $(STATES), \
@@ -27,10 +27,10 @@ TRANSIT_MODES = BUS,TRAINISH
 OTP_URL = http://192.168.59.103:8080
 
 # Minimum # of trips between OD pairs
-TRIPS = 3
+TRIPS = 1
 
 # Minimum distance
-MIN_DISTANCE = 10
+MIN_DISTANCE = 0
 
 # Start / end times
 START = 06:00
@@ -40,7 +40,7 @@ END = 09:00
 LIMIT = 2
 
 # Concurrency
-CONCURRENCY = 1
+CONCURRENCY = 5
 
 # Black magic
 null :=
@@ -72,8 +72,8 @@ data/od-pairs.json: node_modules data/centroids.json $(LODES)
 		--trips $(TRIPS);)
 	@bin/od-analysis
 
-data/access-mode-diff.json: node_modules data/od-pairs.json
-	@./bin/access-mode-diff data/od-pairs.json data/access-mode-diff.json \
+data/access-mode-diff.csv: node_modules data/od-pairs.json
+	@./bin/access-mode-diff data/od-pairs.json data/access-mode-diff.csv \
 		--concurrency $(CONCURRENCY) \
 		--host $(OTP_URL)/otp/routers/default \
 		--start $(START) \
@@ -113,4 +113,4 @@ push:
 		--acl public-read \
 		--verbose
 
-.PHONY: clean clean-data install profiles push
+.PHONY: clean clean-data install profiles push otp

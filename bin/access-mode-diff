@@ -14,12 +14,22 @@ var fs = require('fs');
 var journeys = require(resolve(args._[0]));
 var Profiler = require('otp-profiler');
 var Progress = require('progress');
+var Scorer = require('otp-profile-score');
 
 var batch = new Batch();
 var profiler = new Profiler({
   host: args.host
 });
+var scorer = new Scorer();
+
+var writeHeader = !fs.existsSync(args._[1]);
 var fd = fs.openSync(args._[1], 'a');
+var errorFd = fs.openSync('data/errors.json', 'w');
+
+if (writeHeader) {
+  var headingBuf = new Buffer('flng,flat,tlng,tlat,trips,distance,dbike,dwalk,tbike,twalk', 'utf8');
+  fs.writeSync(fd, headingBuf, 0, headingBuf.length);
+}
 
 var stats = {
   errors: 0,
@@ -47,6 +57,7 @@ batch.end(function(err, results) {
   if (err) console.error(err);
 
   fs.closeSync(fd);
+  fs.closeSync(errorFd);
 
   console.log('stats:');
   console.log(JSON.stringify(stats, null, '\t'));
@@ -54,55 +65,54 @@ batch.end(function(err, results) {
 });
 
 function profileJourney(journey, complete) {
-  var batch = new Batch();
-  batch.push(function(done) {
-    profile(journey, 'WALK', done);
-  });
-
-  batch.push(function(done) {
-    profile(journey, 'BICYCLE', done);
-  });
-
-  batch.end(function(err, results) {
+  profile(journey, function(err, results) {
     if (err) {
       stats.errors++;
-      return complete();
-    } else if (!results) {
+      return saveFailedOtpQuery(err, complete);
+    } else if (!results || !results.options) {
       stats.noResults++;
       return complete();
     }
 
-    var walk = results[0].options || [];
-    var bike = results[1].options || [];
+    var options = scorer.processOptions(results.options);
 
-    var bikeOpt = bike[1];
-    var walkOpt = walk[1];
+    var dwalk = getOpt(options, 'WALK', true);
+    var dbike = getOpt(options, 'BICYCLE', true);
+    var twalk = getOpt(options, 'WALK', false);
+    var tbike = getOpt(options, 'BICYCLE', false);
 
-    if (!bikeOpt) {
+    if (!dbike && !tbike) {
       stats.noRoute++;
       return complete();
     }
 
-    var data = {
-      trip: journey,
-      bike: bikeOpt.stats.avg,
-      walk: 0
-    };
+    if (!dwalk && !twalk) stats.noWalk++;
 
-    if (walkOpt) data.walk = walkOpt.stats.avg || 0;
-    else stats.noWalk++;
+    var dwalkTime = dwalk ? dwalk.stats.avg : 0;
+    var dbikeTime = dbike ? dbike.stats.avg : 0;
+    var twalkTime = twalk ? twalk.stats.avg : 0;
+    var tbikeTime = tbike ? tbike.stats.avg : 0;
 
-    var csv = [ journey[0][0], journey[0][1], journey[1][0], journey[1][1], journey[2], journey[3], data.bike, data.walk ];
-
-    var s = previous ? '\n' : '';
-    var buffer = new Buffer(s + csv.join(','), 'utf8');
+    var csv = [
+      journey[0][0], // from lng
+      journey[0][1], // from lat
+      journey[1][0], // to lng
+      journey[1][1], // to lat
+      journey[2], // trips (used as a multiplier on the client)
+      journey[3], // distance (haversine)
+      dbikeTime, // direct bike time
+      dwalkTime, // direct walk time
+      tbikeTime, // transit
+      twalkTime
+    ];
+    var buffer = new Buffer('\n' + csv.join(','), 'utf8');
 
     previous = true;
     fs.write(fd, buffer, 0, buffer.length, null, complete);
   });
 }
 
-function profile(journey, accessModes, done) {
+function profile(journey, done) {
   profiler.profile({
     from: {
       lon: journey[0][0],
@@ -112,12 +122,34 @@ function profile(journey, accessModes, done) {
       lon: journey[1][0],
       lat: journey[1][1]
     },
-    accessModes: accessModes,
+    accessModes: 'WALK,BICYCLE',
     directModes: 'WALK,BICYCLE',
     egressModes: 'WALK',
     transitModes: 'BUS,TRAINISH',
-    startTime: args.start,
-    endTime: args.end,
-    limit: 1
+    startTime: '06:00',
+    endTime: '09:00',
+    limit: 1 // just get the fastest
   }, done);
+}
+
+function getOpt(options, mode, direct) {
+  for (var i = 0; i < options.length; i++) {
+    var option = options[i];
+    if (option.access[0].mode === mode) {
+      if (direct) {
+        if (!option.transit || option.transit.length === 0) {
+          return option;
+        }
+      } else {
+        if (option.transit && option.transit.length > 0) {
+          return option;
+        }
+      }
+    }
+  }
+}
+
+function saveFailedOtpQuery(error, done) {
+  var buffer = new Buffer(',\n' + JSON.stringify(error, null, '\t'), 'utf8');
+  fs.write(errorFd, buffer, 0, buffer.length, null, done);
 }
