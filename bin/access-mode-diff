@@ -6,12 +6,8 @@ var args = require('minimist')(process.argv.slice(2), {
 
 var Batch = require('batch');
 var resolve = require('path').resolve;
-var factors = args.factors
-  ? require(resolve(args.factors))
-  : null;
 
 var fs = require('fs');
-var journeys = require(resolve(args._[0]));
 var Profiler = require('otp-profiler');
 var Progress = require('progress');
 var Scorer = require('otp-profile-score');
@@ -40,6 +36,8 @@ var stats = {
 
 batch.concurrency(args.concurrency);
 
+var journeys = fs.readFileSync(resolve(args._[0]), { encoding: 'utf8' }).split('\n').slice(1);
+
 console.log('profiling ' + journeys.length + ' journeys');
 
 var previous = false;
@@ -47,7 +45,7 @@ var progress = new Progress(':bar', { total: journeys.length });
 
 journeys.forEach(function(journey) {
   batch.push(function(done) {
-    profileJourney(journey, done);
+    profileJourney(journey.split(','), done);
   });
 });
 
@@ -89,21 +87,32 @@ function profileJourney(journey, complete) {
     if (!dwalk && !twalk) stats.noWalk++;
 
     var dwalkTime = dwalk ? dwalk.stats.avg : 0;
+    var dwalkDistance = dwalk ? dwalk.walkDistance : 0;
+
     var dbikeTime = dbike ? dbike.stats.avg : 0;
+    var dbikeDistance = dbike ? dbike.bikeDistance : 0;
+
     var twalkTime = twalk ? twalk.stats.avg : 0;
+    var twalkDistance = twalk ? twalk.walkDistance : 0;
+
     var tbikeTime = tbike ? tbike.stats.avg : 0;
+    var tbikeDistance = tbike ? tbike.bikeDistance : 0;
 
     var csv = [
-      journey[0][0], // from lng
-      journey[0][1], // from lat
-      journey[1][0], // to lng
-      journey[1][1], // to lat
-      journey[2], // trips (used as a multiplier on the client)
-      journey[3], // distance (haversine)
+      journey[0], // from lng
+      journey[1], // from lat
+      journey[2], // to lng
+      journey[3], // to lat
+      journey[4], // trips (used as a multiplier on the client)
+      journey[5], // distance (haversine)
       dbikeTime, // direct bike time
+      dbikeDistance, // direct bike distance
       dwalkTime, // direct walk time
+      dwalkDistance, // direct walk distance
       tbikeTime, // transit
-      twalkTime
+      tbikeDistance, // bike to transit distance
+      twalkTime, // walk to transit total trip time
+      twalkDistance // total walking distance
     ];
     var buffer = new Buffer('\n' + csv.join(','), 'utf8');
 
@@ -115,12 +124,12 @@ function profileJourney(journey, complete) {
 function profile(journey, done) {
   profiler.profile({
     from: {
-      lon: journey[0][0],
-      lat: journey[0][1]
+      lon: journey[0],
+      lat: journey[1]
     },
     to: {
-      lon: journey[1][0],
-      lat: journey[1][1]
+      lon: journey[2],
+      lat: journey[3]
     },
     accessModes: 'WALK,BICYCLE',
     directModes: 'WALK,BICYCLE',
