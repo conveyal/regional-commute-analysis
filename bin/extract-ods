@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 
-var args = require('minimist')(process.argv.slice(2), {
-  string: 'destinations'
-});
+var args = require('minimist')(process.argv.slice(2));
 
 var fs = require('fs');
+var geojsonUtils = require('geojson-utils');
 var haversine = require('haversine');
 var resolve = require('path').resolve;
+var bounds = require(resolve(args.bounds)).features[0].geometry;
 var centroids = require(resolve(args.centroids));
 
 var inputFile = args._[0];
 var outputFile = args._[1];
 
-var destinations = args.destinations.split(','); // FIPS numbers
 var minTrips = parseInt(args.trips); // Minimum required paired trips
 var minDistance = parseInt(args.minDistance) || 0;
 var maxDistance = parseInt(args.maxDistance) || Infinity;
@@ -37,7 +36,6 @@ for (var i = 0; i < lines.length; i++) lines[i] = lines[i].split(',');
 
 lines.forEach(function(line) {
   if (!line[0] || !line[1]) return;
-  if (destinations.indexOf(line[1].substring(0, 2)) === -1) return;
 
   var trips = parseInt(line[2]);
   if (trips < minTrips) return;
@@ -46,6 +44,18 @@ lines.forEach(function(line) {
   var d = centroids[line[1]];
 
   if (!o || !d) return;
+
+  var gjfrom = {
+    type: 'Point',
+    coordinates: o
+  };
+  var gjto ={
+    type: 'Point',
+    coordinates: d
+  };
+
+  if (!geojsonUtils.pointInPolygon(gjto, bounds) &&
+      !geojsonUtils.pointInPolygon(gjfrom, bounds)) return;
 
   var distance = haversine({
     longitude: o[0],

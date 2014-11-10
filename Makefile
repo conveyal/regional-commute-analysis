@@ -1,6 +1,6 @@
 
 # FIPS State Codes, DC: 11, MD: 24, VA: 51
-FIPS = 51
+FIPS = 11 24 51
 
 # States
 STATES = dc va md
@@ -24,7 +24,7 @@ DIRECT_MODES = BICYCLE,CAR,WALK
 TRANSIT_MODES = BUS,TRAINISH
 
 # OTP URL
-OTP_URL = http://192.168.59.103:8080
+OTP_URL = http://carfreeatoz-opentripplanner-1020724384.us-east-1.elb.amazonaws.com
 
 # Minimum # of trips between OD pairs
 TRIPS = 1
@@ -39,8 +39,11 @@ END = 09:00
 # Transit options limit
 LIMIT = 2
 
+# Bounds
+BOUNDS = data/arlington.geo.json
+
 # Concurrency
-CONCURRENCY = 5
+CONCURRENCY = 30
 
 # Black magic
 null :=
@@ -67,7 +70,7 @@ data/centroids.json: node_modules $(BLOCKS)
 data/od-pairs.csv: node_modules data/centroids.json $(LODES)
 	@$(foreach file, $(LODES), ./bin/extract-ods $(file) data/od-pairs.csv \
 		--centroids data/centroids.json \
-		--destinations $(subst $(space),$(comma),$(FIPS)) \
+		--bounds $(BOUNDS) \
 		--minDistance $(MIN_DISTANCE) \
 		--trips $(TRIPS);)
 	@bin/od-analysis

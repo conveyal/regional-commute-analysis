@@ -8,6 +8,7 @@ var Batch = require('batch');
 var resolve = require('path').resolve;
 
 var fs = require('fs');
+var ms = require('ms');
 var Profiler = require('otp-profiler');
 var Progress = require('progress');
 var Scorer = require('otp-profile-score');
@@ -38,18 +39,38 @@ batch.concurrency(args.concurrency);
 
 var journeys = fs.readFileSync(resolve(args._[0]), { encoding: 'utf8' }).split('\n').slice(1);
 
-console.log('profiling ' + journeys.length + ' journeys');
-
-var previous = false;
-var progress = new Progress(':bar', { total: journeys.length });
-
 journeys.forEach(function(journey) {
   batch.push(function(done) {
     profileJourney(journey.split(','), done);
   });
 });
 
-batch.on('progress', function() { progress.tick(); });
+var last100speeds = [];
+var last100total = 0;
+var start = new Date();
+var progress = new Progress('profiling: [:current/:total] :timeleft :average/avg :last/last', {
+  total: journeys.length,
+  width: 20
+});
+
+batch.on('progress', function(e) {
+  var elapsed = new Date() - start;
+  var timeleft = (progress.percent == 100)
+    ? 0
+    : elapsed * (progress.total / progress.curr - 1);
+
+  if (last100speeds.length >= 100)
+    last100total -= last100speeds.shift();
+  var speed = e.end - e.start;
+  last100total += speed;
+  last100speeds.push(speed);
+
+  progress.tick({
+    average: ms(last100total / last100speeds.length),
+    last: ms(speed),
+    timeleft: ms(timeleft)
+  });
+});
 
 batch.end(function(err, results) {
   if (err) console.error(err);
@@ -86,17 +107,10 @@ function profileJourney(journey, complete) {
 
     if (!dwalk && !twalk) stats.noWalk++;
 
-    var dwalkTime = dwalk ? dwalk.stats.avg : 0;
-    var dwalkDistance = dwalk ? dwalk.walkDistance : 0;
-
-    var dbikeTime = dbike ? dbike.stats.avg : 0;
-    var dbikeDistance = dbike ? dbike.bikeDistance : 0;
-
-    var twalkTime = twalk ? twalk.stats.avg : 0;
-    var twalkDistance = twalk ? twalk.walkDistance : 0;
-
-    var tbikeTime = tbike ? tbike.stats.avg : 0;
-    var tbikeDistance = tbike ? tbike.bikeDistance : 0;
+    dwalk = getOptData(dwalk);
+    dbike = getOptData(dbike, true);
+    twalk = getOptData(twalk);
+    tbike = getOptData(tbike, true);
 
     var csv = [
       journey[0], // from lng
@@ -105,18 +119,16 @@ function profileJourney(journey, complete) {
       journey[3], // to lat
       journey[4], // trips (used as a multiplier on the client)
       journey[5], // distance (haversine)
-      dbikeTime, // direct bike time
-      dbikeDistance, // direct bike distance
-      dwalkTime, // direct walk time
-      dwalkDistance, // direct walk distance
-      tbikeTime, // transit
-      tbikeDistance, // bike to transit distance
-      twalkTime, // walk to transit total trip time
-      twalkDistance // total walking distance
+      dbike.time, // direct bike time
+      dbike.distance, // direct bike distance
+      dwalk.time, // direct walk time
+      dwalk.distance, // direct walk distance
+      tbike.time, // transit
+      tbike.distance, // bike to transit distance
+      twalk.time, // walk to transit total trip time
+      twalk.distance // total walking distance
     ];
     var buffer = new Buffer('\n' + csv.join(','), 'utf8');
-
-    previous = true;
     fs.write(fd, buffer, 0, buffer.length, null, complete);
   });
 }
@@ -156,6 +168,24 @@ function getOpt(options, mode, direct) {
       }
     }
   }
+}
+
+function getOptData(opt, isBike) {
+  var data = {
+    time: 0,
+    distance: 0
+  };
+
+  if (opt) {
+    data.time = opt.stats.avg;
+    if (isBike) {
+      data.distance = opt.bikeDistance;
+    } else {
+      data.distance = opt.walkDistance;
+    }
+  }
+
+  return data;
 }
 
 function saveFailedOtpQuery(error, done) {
