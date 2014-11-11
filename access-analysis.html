@@ -85,16 +85,18 @@
       var charts = window.charts = {};
 
       // Load json
-      d3.csv('data/access-mode-diff.json', function(d) {
+      d3.csv('data/access-mode-diff.csv', function(d) {
         return {
-          bike: +d.bike,
-          trip: [
+          coords: [
             [ +d.flng, +d.flat ],
-            [ +d.tlng, +d.tlat ],
-            +d.trips,
-            +d.distance
+            [ +d.tlng, +d.tlat ]
           ],
-          walk: +d.walk
+          distance: +d.distance,
+          trips: +d.trips,
+          dbike: +d.dbike,
+          dwalk: +d.dwalk,
+          tbike: +d.tbike,
+          twalk: +d.twalk
         };
       }, function(err, j) {
         if (err) console.error(err);
@@ -102,10 +104,13 @@
 
         // Duplicate records based on # of trips
         json.forEach(function(r) {
-          if (r.walk === 0) r.walk = r.bike * 2;
-          for (var i = 1; i < r.trip[2]; i++) {
+          if (r.twalk === 0) r.twalk = r.tbike * 2;
+          for (var i = 1; i < r.trips; i++) {
+            var c = clone(r);
+            delete c.trips;
             json.push(clone(r));
           }
+          delete r.trips;
         });
 
         // Show viz & stop spinner
@@ -144,7 +149,7 @@
           .height(height)
           .width(width)
           .margins(margin)
-          .x(d3.scale.linear().domain([10, 40]))
+          .x(d3.scale.linear().domain([0, 40]))
           .elasticY(true)
           .round(Math.round)
           .dimension(dimensions.distance)
@@ -157,6 +162,7 @@
           .width(width)
           .margins(margin)
           .round(Math.round)
+          .elasticY(true)
           .x(d3.scale.linear().domain([0, 40]))
           .dimension(dimensions.impact)
           .group(dimensions.impact.group(function(d) {
@@ -190,13 +196,13 @@
 
       function showStats(rows) {
         var averageTripLength = d3.mean(rows, function(r) {
-          return r.bike;
+          return r.tbike;
         });
         var averageDistance = d3.mean(rows, function(r) {
-          return r.trip[3];
+          return r.distance;
         });
         var averageTimeSavings = d3.mean(rows, function(r) {
-          return (r.walk - r.bike) / 60;
+          return (r.twalk - r.tbike) / 60;
         });
 
         var el = document.querySelector('.time-saved');
@@ -206,10 +212,10 @@
       function getDimensions(o) {
         return {
           distance: o.dimension(function(d) {
-            return d.trip[3];
+            return d.distance;
           }),
           impact: o.dimension(function(d) {
-            return (d.walk - d.bike) / 60;
+            return (d.twalk - d.tbike) / 60;
           })
         };
       }
@@ -228,15 +234,14 @@
 
         // Generate hexbins
         var origins = data.map(function(d) {
-          var j = d.trip[0];
-          j.impact = (d.walk - d.bike) / 60;
+          var j = d.coords[0];
+          j.impact = (d.twalk - d.tbike) / 60;
           j.origin = 1;
           return j;
         });
 
         var hexbins = hexbin(origins, {
           caccessor: function(b) {
-            console.log(b.impact);
             return b.impact;
           },
           cscale: function(bs) {

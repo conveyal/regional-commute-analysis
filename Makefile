@@ -43,7 +43,7 @@ LIMIT = 2
 BOUNDS = data/arlington.geo.json
 
 # Concurrency
-CONCURRENCY = 30
+CONCURRENCY = 10
 
 # Black magic
 null :=
