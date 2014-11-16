@@ -120,7 +120,7 @@ function profileJourney(journey, complete) {
       success: !err,
       from: [ parseFloat(journey[0]), parseFloat(journey[1]) ],
       to: [ parseFloat(journey[2]), parseFloat(journey[3]) ],
-      trips: journey[4],
+      trips: parseInt(journey[4]),
       results: results
     });
 
