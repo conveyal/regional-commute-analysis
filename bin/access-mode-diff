@@ -19,14 +19,11 @@ var profiler = new Profiler({
 });
 var scorer = new Scorer();
 
-var writeHeader = !fs.existsSync(args._[1]);
 var fd = fs.openSync(args._[1], 'a');
-var errorFd = fs.openSync('data/errors.json', 'w');
+var first = true;
 
-if (writeHeader) {
-  var headingBuf = new Buffer('flng,flat,tlng,tlat,trips,distance,dbike,dwalk,tbike,twalk', 'utf8');
-  fs.writeSync(fd, headingBuf, 0, headingBuf.length);
-}
+var headingBuf = new Buffer('{', 'utf8');
+fs.writeSync(fd, headingBuf, 0, headingBuf.length);
 
 var stats = {
   errors: 0,
@@ -48,7 +45,7 @@ journeys.forEach(function(journey) {
 var last100speeds = [];
 var last100total = 0;
 var start = new Date();
-var progress = new Progress('profiling: [:current/:total] :timeleft :average/avg :last/last', {
+var progress = new Progress('[:current/:total] :timeleft left - :average/avg :last/last - errors: :errors', {
   total: journeys.length,
   width: 20
 });
@@ -61,12 +58,14 @@ batch.on('progress', function(e) {
 
   if (last100speeds.length >= 100)
     last100total -= last100speeds.shift();
+
   var speed = e.end - e.start;
   last100total += speed;
   last100speeds.push(speed);
 
   progress.tick({
     average: ms(last100total / last100speeds.length),
+    errors: stats.errors,
     last: ms(speed),
     timeleft: ms(timeleft)
   });
@@ -75,8 +74,9 @@ batch.on('progress', function(e) {
 batch.end(function(err, results) {
   if (err) console.error(err);
 
+  var close = new Buffer('}', 'utf8');
+  fs.writeSync(fd, close, 0, close.length);
   fs.closeSync(fd);
-  fs.closeSync(errorFd);
 
   console.log('stats:');
   console.log(JSON.stringify(stats, null, '\t'));
@@ -84,51 +84,50 @@ batch.end(function(err, results) {
 });
 
 function profileJourney(journey, complete) {
+  var profileStart = new Date();
   profile(journey, function(err, results) {
     if (err) {
       stats.errors++;
-      return saveFailedOtpQuery(err, complete);
+      results = err;
     } else if (!results || !results.options) {
       stats.noResults++;
-      return complete();
+      results = [];
+    } else {
+      results = scorer.processOptions(results.options);
+      results.forEach(function(option) {
+        option.access.forEach(function(access) {
+          delete access.geometry;
+          delete access.walkSteps;
+        });
+
+        if (option.egress) option.egress.forEach(function(egress) {
+          delete egress.geometry;
+          delete egress.walkSteps;
+        });
+
+        if (option.transit) option.transit.forEach(function(transit) {
+          delete transit.segmentPatterns;
+        });
+
+        delete option.fares;
+        delete option.summary;
+      });
     }
 
-    var options = scorer.processOptions(results.options);
+    var key = [ journey[0], journey[1], journey[2], journey[3] ].join(',');
+    var string = '"' + key + '":' + JSON.stringify({
+      responseTime: new Date() - profileStart,
+      success: !err,
+      from: [ parseFloat(journey[0]), parseFloat(journey[1]) ],
+      to: [ parseFloat(journey[2]), parseFloat(journey[3]) ],
+      trips: journey[4],
+      results: results
+    });
 
-    var dwalk = getOpt(options, 'WALK', true);
-    var dbike = getOpt(options, 'BICYCLE', true);
-    var twalk = getOpt(options, 'WALK', false);
-    var tbike = getOpt(options, 'BICYCLE', false);
+    if (!first) string = ',' + string;
+    first = false;
 
-    if (!dbike && !tbike) {
-      stats.noRoute++;
-      return complete();
-    }
-
-    if (!dwalk && !twalk) stats.noWalk++;
-
-    dwalk = getOptData(dwalk);
-    dbike = getOptData(dbike, true);
-    twalk = getOptData(twalk);
-    tbike = getOptData(tbike, true);
-
-    var csv = [
-      journey[0], // from lng
-      journey[1], // from lat
-      journey[2], // to lng
-      journey[3], // to lat
-      journey[4], // trips (used as a multiplier on the client)
-      journey[5], // distance (haversine)
-      dbike.time, // direct bike time
-      dbike.distance, // direct bike distance
-      dwalk.time, // direct walk time
-      dwalk.distance, // direct walk distance
-      tbike.time, // transit
-      tbike.distance, // bike to transit distance
-      twalk.time, // walk to transit total trip time
-      twalk.distance // total walking distance
-    ];
-    var buffer = new Buffer('\n' + csv.join(','), 'utf8');
+    var buffer = new Buffer(string, 'utf8');
     fs.write(fd, buffer, 0, buffer.length, null, complete);
   });
 }
@@ -151,44 +150,4 @@ function profile(journey, done) {
     endTime: '09:00',
     limit: 1 // just get the fastest
   }, done);
-}
-
-function getOpt(options, mode, direct) {
-  for (var i = 0; i < options.length; i++) {
-    var option = options[i];
-    if (option.access[0].mode === mode) {
-      if (direct) {
-        if (!option.transit || option.transit.length === 0) {
-          return option;
-        }
-      } else {
-        if (option.transit && option.transit.length > 0) {
-          return option;
-        }
-      }
-    }
-  }
-}
-
-function getOptData(opt, isBike) {
-  var data = {
-    time: 0,
-    distance: 0
-  };
-
-  if (opt) {
-    data.time = opt.stats.avg;
-    if (isBike) {
-      data.distance = opt.bikeDistance;
-    } else {
-      data.distance = opt.walkDistance;
-    }
-  }
-
-  return data;
-}
-
-function saveFailedOtpQuery(error, done) {
-  var buffer = new Buffer(',\n' + JSON.stringify(error, null, '\t'), 'utf8');
-  fs.write(errorFd, buffer, 0, buffer.length, null, done);
 }

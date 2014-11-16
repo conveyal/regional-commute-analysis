@@ -27,7 +27,7 @@ TRANSIT_MODES = BUS,TRAINISH
 OTP_URL = http://carfreeatoz-opentripplanner-1020724384.us-east-1.elb.amazonaws.com
 
 # Minimum # of trips between OD pairs
-TRIPS = 1
+TRIPS = 20
 
 # Minimum distance
 MIN_DISTANCE = 0
@@ -43,7 +43,7 @@ LIMIT = 2
 BOUNDS = data/arlington.geo.json
 
 # Concurrency
-CONCURRENCY = 10
+CONCURRENCY = 2
 
 # Black magic
 null :=
@@ -75,8 +75,8 @@ data/od-pairs.csv: node_modules data/centroids.json $(LODES)
 		--trips $(TRIPS);)
 	@bin/od-analysis
 
-data/access-mode-diff.csv: node_modules data/od-pairs.csv
-	@./bin/access-mode-diff data/od-pairs.csv data/access-mode-diff.csv \
+data/access-mode-diff.json: node_modules data/od-pairs.csv
+	@./bin/access-mode-diff data/od-pairs.csv data/access-mode-diff.json \
 		--concurrency $(CONCURRENCY) \
 		--host $(OTP_URL)/otp/routers/default \
 		--start $(START) \
