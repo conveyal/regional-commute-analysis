@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
-var args = require('minimist')(process.argv.slice(2), {
-  string: [ 'start', 'end' ]
-});
+var args = require('minimist')(process.argv.slice(2));
 
 var Batch = require('batch');
 var resolve = require('path').resolve;
@@ -18,20 +16,24 @@ var profiler = new Profiler({
   host: args.host
 });
 var scorer = new Scorer();
-
-var fd = fs.openSync(args._[1], 'a');
 var first = true;
 
-var headingBuf = new Buffer('{\n', 'utf8');
-fs.writeSync(fd, headingBuf, 0, headingBuf.length);
+var profilesFile = resolve(args._[1]);
+var profiles = [];
+if (fs.existsSync(profilesFile))
+  profiles = require(profilesFile);
 
-var journeys = fs.readFileSync(resolve(args._[0]), { encoding: 'utf8' }).split('\n').slice(1);
+profiles = profiles.filter(function(p) {
+  return p !== null && p !== undefined;
+});
+
+var odpairs = fs.readFileSync(resolve(args._[0]), { encoding: 'utf8' }).split('\n').slice(1);
 
 var stats = {
   errors: 0,
   noResults: 0,
-  noRoute: 0,
-  noWalk: 0
+  notUpdated: 0,
+  success: 0
 };
 
 var message = '';
@@ -40,13 +42,13 @@ var last100total = 0;
 var last100avg = 0;
 var start = new Date();
 var progress = new Progress('[:current/:total] :timeleft left :average avg :errors errors > :message', {
-  total: journeys.length,
+  total: odpairs.length,
   width: 20
 });
 
 batch.concurrency(args.concurrency);
 
-journeys.forEach(function(journey) {
+odpairs.forEach(function(journey) {
   batch.push(function(done) {
     profileJourney(journey.split(','), done);
   });
@@ -78,9 +80,7 @@ batch.on('progress', function(e) {
 batch.end(function(err, results) {
   if (err) console.error(err);
 
-  var close = new Buffer('\n}', 'utf8');
-  fs.writeSync(fd, close, 0, close.length);
-  fs.closeSync(fd);
+  fs.writeFileSync(profilesFile, JSON.stringify(profiles, null, '\t'));
 
   console.log('stats:');
   console.log(JSON.stringify(stats, null, '\t'));
@@ -89,6 +89,20 @@ batch.end(function(err, results) {
 
 function profileJourney(journey, complete) {
   var profileStart = new Date();
+
+  for (var i = 0; i < profiles.length; i++) {
+    var p = profiles[i];
+    if (lleql([ journey[0], journey[1] ], p.from) && lleql([ journey[2], journey[3] ], p.to)) {
+      if (args.force || !p.success) {
+        profiles.splice(i, 1);
+        break;
+      } else {
+        stats.notUpdated++;
+        return complete();
+      }
+    }
+  }
+
   profile(journey, function(err, results) {
     if (err) {
       stats.errors++;
@@ -119,24 +133,20 @@ function profileJourney(journey, complete) {
         delete option.summary;
       });
 
+      stats.success++;
       message = results.length + ' results found.';
     }
 
-    var key = [ journey[0], journey[1], journey[2], journey[3] ].join(',');
-    var string = '"' + key + '":' + JSON.stringify({
+    profiles.push({
       responseTime: new Date() - profileStart,
       success: !err,
       from: [ parseFloat(journey[0]), parseFloat(journey[1]) ],
       to: [ parseFloat(journey[2]), parseFloat(journey[3]) ],
       trips: parseInt(journey[4]),
       results: results
-    }, null, '\t');
+    });
 
-    if (!first) string = ',\n' + string;
-    first = false;
-
-    var buffer = new Buffer(string, 'utf8');
-    fs.write(fd, buffer, 0, buffer.length, null, complete);
+    complete();
   });
 }
 
@@ -158,4 +168,9 @@ function profile(journey, done) {
     endTime: '09:00',
     limit: 1 // just get the fastest
   }, done);
+}
+
+function lleql(l1, l2) {
+  if (!l1 || !l2 || !Array.isArray(l2)) return false;
+  return parseFloat(l1[0]) == parseFloat(l2[0]) && parseFloat(l1[1]) == parseFloat(l2[1]);
 }
