@@ -22,8 +22,10 @@ var scorer = new Scorer();
 var fd = fs.openSync(args._[1], 'a');
 var first = true;
 
-var headingBuf = new Buffer('{', 'utf8');
+var headingBuf = new Buffer('{\n', 'utf8');
 fs.writeSync(fd, headingBuf, 0, headingBuf.length);
+
+var journeys = fs.readFileSync(resolve(args._[0]), { encoding: 'utf8' }).split('\n').slice(1);
 
 var stats = {
   errors: 0,
@@ -32,22 +34,22 @@ var stats = {
   noWalk: 0
 };
 
-batch.concurrency(args.concurrency);
+var message = '';
+var last100speeds = [];
+var last100total = 0;
+var last100avg = 0;
+var start = new Date();
+var progress = new Progress('[:current/:total] :timeleft left :average avg :errors errors > :message', {
+  total: journeys.length,
+  width: 20
+});
 
-var journeys = fs.readFileSync(resolve(args._[0]), { encoding: 'utf8' }).split('\n').slice(1);
+batch.concurrency(args.concurrency);
 
 journeys.forEach(function(journey) {
   batch.push(function(done) {
     profileJourney(journey.split(','), done);
   });
-});
-
-var last100speeds = [];
-var last100total = 0;
-var start = new Date();
-var progress = new Progress('[:current/:total] :timeleft left - :average/avg :last/last - errors: :errors', {
-  total: journeys.length,
-  width: 20
 });
 
 batch.on('progress', function(e) {
@@ -62,11 +64,13 @@ batch.on('progress', function(e) {
   var speed = e.end - e.start;
   last100total += speed;
   last100speeds.push(speed);
+  last100avg = last100total / last100speeds.length;
 
   progress.tick({
-    average: ms(last100total / last100speeds.length),
+    average: ms(last100avg),
     errors: stats.errors,
     last: ms(speed),
+    message: message,
     timeleft: ms(timeleft)
   });
 });
@@ -74,7 +78,7 @@ batch.on('progress', function(e) {
 batch.end(function(err, results) {
   if (err) console.error(err);
 
-  var close = new Buffer('}', 'utf8');
+  var close = new Buffer('\n}', 'utf8');
   fs.writeSync(fd, close, 0, close.length);
   fs.closeSync(fd);
 
@@ -89,9 +93,11 @@ function profileJourney(journey, complete) {
     if (err) {
       stats.errors++;
       results = err;
+      message = err.message || JSON.stringify(err);
     } else if (!results || !results.options) {
       stats.noResults++;
       results = [];
+      message = 'No results found.';
     } else {
       results = scorer.processOptions(results.options);
       results.forEach(function(option) {
@@ -112,6 +118,8 @@ function profileJourney(journey, complete) {
         delete option.fares;
         delete option.summary;
       });
+
+      message = results.length + ' results found.';
     }
 
     var key = [ journey[0], journey[1], journey[2], journey[3] ].join(',');
@@ -122,9 +130,9 @@ function profileJourney(journey, complete) {
       to: [ parseFloat(journey[2]), parseFloat(journey[3]) ],
       trips: parseInt(journey[4]),
       results: results
-    });
+    }, null, '\t');
 
-    if (!first) string = ',' + string;
+    if (!first) string = ',\n' + string;
     first = false;
 
     var buffer = new Buffer(string, 'utf8');
