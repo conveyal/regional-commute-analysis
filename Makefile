@@ -27,7 +27,7 @@ TRANSIT_MODES = BUS,TRAINISH
 OTP_URL = http://carfreeatoz-opentripplanner-1020724384.us-east-1.elb.amazonaws.com
 
 # Minimum # of trips between OD pairs
-TRIPS = 20
+TRIPS = 0
 
 # Minimum distance
 MIN_DISTANCE = 0
@@ -43,7 +43,7 @@ LIMIT = 2
 BOUNDS = data/arlington.geo.json
 
 # Concurrency
-CONCURRENCY = 2
+CONCURRENCY = 10
 
 # Black magic
 null :=
