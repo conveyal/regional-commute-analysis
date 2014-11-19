@@ -80,8 +80,6 @@ batch.on('progress', function(e) {
 batch.end(function(err, results) {
   if (err) console.error(err);
 
-  fs.writeFileSync(profilesFile, JSON.stringify(profiles, null, '\t'));
-
   console.log('stats:');
   console.log(JSON.stringify(stats, null, '\t'));
   process.exit();
@@ -146,7 +144,10 @@ function profileJourney(journey, complete) {
       results: results
     });
 
-    complete();
+    // Write file on every query
+    fs.writeFile(profilesFile, JSON.stringify(profiles, null, '\t'), function(err) {
+      complete();
+    });
   });
 }
 

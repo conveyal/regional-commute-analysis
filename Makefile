@@ -75,7 +75,7 @@ data/od-pairs.csv: node_modules data/centroids.json $(LODES)
 		--trips $(TRIPS);)
 	@bin/od-analysis
 
-data/access-mode-diff.json: node_modules data/od-pairs.csv
+access-mode-diff: node_modules data/od-pairs.csv
 	@./bin/access-mode-diff data/od-pairs.csv data/access-mode-diff.json \
 		--concurrency $(CONCURRENCY) \
 		--host $(OTP_URL)/otp/routers/default \
