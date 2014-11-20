@@ -75,10 +75,16 @@ batch.on('progress', function(e) {
     message: message,
     timeleft: ms(timeleft)
   });
+
+  if (progress.curr % 10 === 0) {
+    fs.writeFileSync(profilesFile, JSON.stringify(profiles, null, '\t'));
+  }
 });
 
 batch.end(function(err, results) {
   if (err) console.error(err);
+
+  fs.writeFileSync(profilesFile, JSON.stringify(profiles, null, '\t'));
 
   console.log('stats:');
   console.log(JSON.stringify(stats, null, '\t'));
@@ -144,10 +150,7 @@ function profileJourney(journey, complete) {
       results: results
     });
 
-    // Write file on every query
-    fs.writeFile(profilesFile, JSON.stringify(profiles, null, '\t'), function(err) {
-      complete();
-    });
+    complete();
   });
 }
 
