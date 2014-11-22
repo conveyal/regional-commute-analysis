@@ -23,6 +23,9 @@ EGRESS_MODES = WALK
 DIRECT_MODES = BICYCLE,CAR,WALK
 TRANSIT_MODES = BUS,TRAINISH
 
+# MONGODB
+MONGODB = mongodb://localhost/regional-commute-analysis
+
 # OTP URL
 OTP_URL = http://carfreeatoz-opentripplanner-1020724384.us-east-1.elb.amazonaws.com
 
@@ -79,8 +82,7 @@ access-mode-diff: node_modules data/od-pairs.csv
 	@./bin/access-mode-diff data/od-pairs.csv data/access-mode-diff.json \
 		--concurrency $(CONCURRENCY) \
 		--host $(OTP_URL)/otp/routers/default \
-		--start $(START) \
-		--end $(END)
+		--mongodb $(MONGODB)
 
 data/profiles.json: node_modules data/od-pairs.json
 	@./bin/profile data/od-pairs.json data/profiles.json \

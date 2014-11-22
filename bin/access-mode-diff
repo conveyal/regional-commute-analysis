@@ -3,29 +3,21 @@
 var args = require('minimist')(process.argv.slice(2));
 
 var Batch = require('batch');
-var resolve = require('path').resolve;
-
 var fs = require('fs');
+var mongoose = require('mongoose');
 var ms = require('ms');
 var Profiler = require('otp-profiler');
 var Progress = require('progress');
+var resolve = require('path').resolve;
 var Scorer = require('otp-profile-score');
 
-var batch = new Batch();
-var profiler = new Profiler({
-  host: args.host
-});
-var scorer = new Scorer();
-var first = true;
+var Profile = require('../lib/profile');
 
-var profilesFile = resolve(args._[1]);
-var profiles = [];
-if (fs.existsSync(profilesFile))
-  profiles = require(profilesFile);
+// Connect to the DB
 
-profiles = profiles.filter(function(p) {
-  return p !== null && p !== undefined;
-});
+mongoose.connect(args.mongodb);
+
+// Load OD pairs
 
 var odpairs = fs.readFileSync(resolve(args._[0]), { encoding: 'utf8' }).split('\n').slice(1);
 
@@ -45,6 +37,12 @@ var progress = new Progress('[:current/:total] :timeleft left :average avg :erro
   total: odpairs.length,
   width: 20
 });
+var batch = new Batch();
+var profiler = new Profiler({
+  host: args.host
+});
+var scorer = new Scorer();
+var first = true;
 
 batch.concurrency(args.concurrency);
 
@@ -68,23 +66,19 @@ batch.on('progress', function(e) {
   last100speeds.push(speed);
   last100avg = last100total / last100speeds.length;
 
+  message = message || '';
+
   progress.tick({
     average: ms(last100avg),
     errors: stats.errors,
     last: ms(speed),
-    message: message,
+    message: message.slice(0, 30),
     timeleft: ms(timeleft)
   });
-
-  if (progress.curr % 10 === 0) {
-    fs.writeFileSync(profilesFile, JSON.stringify(profiles, null, '\t'));
-  }
 });
 
 batch.end(function(err, results) {
   if (err) console.error(err);
-
-  fs.writeFileSync(profilesFile, JSON.stringify(profiles, null, '\t'));
 
   console.log('stats:');
   console.log(JSON.stringify(stats, null, '\t'));
@@ -92,69 +86,73 @@ batch.end(function(err, results) {
 });
 
 function profileJourney(journey, complete) {
-  var profileStart = new Date();
+  var from = [ parseFloat(journey[0]), parseFloat(journey[1]) ];
+  var to = [ parseFloat(journey[2]), parseFloat(journey[3]) ];
 
-  for (var i = 0; i < profiles.length; i++) {
-    var p = profiles[i];
-    if (lleql([ journey[0], journey[1] ], p.from) && lleql([ journey[2], journey[3] ], p.to)) {
-      if (args.force || !p.success) {
-        profiles.splice(i, 1);
-        break;
-      } else {
-        stats.notUpdated++;
-        return complete();
-      }
-    }
-  }
-
-  profile(journey, function(err, results) {
+  Profile.findOne({
+    from: from,
+    to: to
+  }, function(err, profile) {
     if (err) {
-      stats.errors++;
-      results = err;
-      message = err.message || JSON.stringify(err);
-    } else if (!results || !results.options) {
-      stats.noResults++;
-      results = [];
-      message = 'No results found.';
+      complete(err);
+    } else if (profile && !args.force) {
+      stats.notUpdated++;
+      complete();
     } else {
-      results = scorer.processOptions(results.options);
-      results.forEach(function(option) {
-        option.access.forEach(function(access) {
-          delete access.geometry;
-          delete access.walkSteps;
-        });
+      var profileStart = new Date();
+      query(journey, function(err, results) {
+        if (err) {
+          stats.errors++;
+          results = err;
+          message = err.message || JSON.stringify(err);
+        } else if (!results || !results.options) {
+          stats.noResults++;
+          results = [];
+          message = 'No results found.';
+        } else {
+          results = scorer.processOptions(results.options);
+          results.forEach(function(option) {
+            option.access.forEach(function(access) {
+              delete access.geometry;
+              delete access.walkSteps;
+            });
 
-        if (option.egress) option.egress.forEach(function(egress) {
-          delete egress.geometry;
-          delete egress.walkSteps;
-        });
+            if (option.egress) option.egress.forEach(function(egress) {
+              delete egress.geometry;
+              delete egress.walkSteps;
+            });
 
-        if (option.transit) option.transit.forEach(function(transit) {
-          delete transit.segmentPatterns;
-        });
+            if (option.transit) option.transit.forEach(function(transit) {
+              delete transit.segmentPatterns;
+            });
 
-        delete option.fares;
-        delete option.summary;
+            delete option.fares;
+            delete option.summary;
+          });
+
+          stats.success++;
+          message = results.length + ' results found.';
+        }
+
+        Profile.findOneAndUpdate({
+          from: from,
+          to: to
+        }, {
+          responseTime: new Date() - profileStart,
+          success: !err,
+          from: from,
+          to: to,
+          trips: parseInt(journey[4]),
+          results: results
+        }, {
+          upsert: true
+        }, complete);
       });
-
-      stats.success++;
-      message = results.length + ' results found.';
     }
-
-    profiles.push({
-      responseTime: new Date() - profileStart,
-      success: !err,
-      from: [ parseFloat(journey[0]), parseFloat(journey[1]) ],
-      to: [ parseFloat(journey[2]), parseFloat(journey[3]) ],
-      trips: parseInt(journey[4]),
-      results: results
-    });
-
-    complete();
   });
 }
 
-function profile(journey, done) {
+function query(journey, done) {
   profiler.profile({
     from: {
       lon: journey[0],
