@@ -15,7 +15,18 @@ var Profile = require('../lib/profile');
 
 // Connect to the DB
 
-mongoose.connect(args.mongodb);
+mongoose.connect(args.mongodb, {
+  server: {
+    socketOptions: {
+      keepAlive: 1
+    }
+  },
+  replset: {
+    socketOptions: {
+      keepAlive: 1
+    }
+  }
+});
 
 // Load OD pairs
 
