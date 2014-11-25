@@ -259,8 +259,8 @@
             });
 
             return d3.scale.sqrt()
-              .domain([ min, d3.mean(bs, function(b) { return b.impact; }),  max ])
-              .range([ '#d9534f', '#f0ad4e', '#428bca' ]);
+              .domain([ 0, d3.mean(bs, function(b) { return b.impact; }),  max ])
+              .range(colorbrewer.Spectral[3]);
 
           },
           height: $map.clientHeight,
