@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+
+var args = require('minimist')(process.argv.slice(2));
+
+var async = require('async');
+var fs = require('fs');
+var resolve = require('path').resolve;
+
+var db = require('../lib/db');
+var Profile = require('../lib/profile');
+
+// Connect to the DB
+
+db.connect(args.mongodb);
+
+// Retrieve, process, and store
+
+var data = [];
+var limit = 100;
+var skip = 0;
+
+// Run until it fails
+
+async.forever(query, write);
+
+function query(callback) {
+  Profile
+    .find()
+    .limit(limit)
+    .skip(skip)
+    .exec(function(err, profiles) {
+      if (err) return callback(err);
+      if (!profiles || profiles.length < 1) return callback('No profiles!');
+      console.log('Found', profiles.length, 'more profiles, index:', skip);
+      data = data.concat(profiles.map(extract));
+      skip += limit;
+      callback();
+    });
+}
+
+function extract(profile) {
+  return [
+    profile.from[0],
+    profile.from[1],
+    profile.to[0],
+    profile.to[1],
+    profile.trips,
+    timeForMode(profile, 'bike', true),
+    timeForMode(profile, 'walk', true),
+    timeForMode(profile, 'bike'),
+    timeForMode(profile, 'walk')
+  ].join(',');
+}
+
+function write(err) {
+  if (err) console.error(err);
+
+  var heading = [ 'flng', 'flat', 'tlng', 'tlat', 'trips', 'dbike', 'dwalk', 'tbike', 'twalk' ];
+  var csv = heading.join(',') + '\n' + data.join('\n');
+  fs.writeFileSync(resolve(args._[0]), csv, { encoding: 'utf8' });
+
+  process.exit();
+}
+
+function timeForMode(profile, mode, direct) {
+  if (!profile.success) return -1;
+  var match = profile.results.filter(function(result) {
+    var hasTransit = result.transit && result.transit.length > 0;
+    if (mode === result.access[0].mode.toLowerCase() && ((direct && !hasTransit) || (!direct && hasTransit)))
+      return true;
+    return false;
+  })[0];
+  if (!match) return -1;
+  else return match.time;
+}

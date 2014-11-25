@@ -4,29 +4,18 @@ var args = require('minimist')(process.argv.slice(2));
 
 var Batch = require('batch');
 var fs = require('fs');
-var mongoose = require('mongoose');
 var ms = require('ms');
 var Profiler = require('otp-profiler');
 var Progress = require('progress');
 var resolve = require('path').resolve;
 var Scorer = require('otp-profile-score');
 
+var db = require('../lib/db');
 var Profile = require('../lib/profile');
 
 // Connect to the DB
 
-mongoose.connect(args.mongodb, {
-  server: {
-    socketOptions: {
-      keepAlive: 1
-    }
-  },
-  replset: {
-    socketOptions: {
-      keepAlive: 1
-    }
-  }
-});
+db.connect(args.mongodb);
 
 // Load OD pairs
 
