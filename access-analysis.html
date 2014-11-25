@@ -91,7 +91,7 @@
             [ +d.flng, +d.flat ],
             [ +d.tlng, +d.tlat ]
           ],
-          distance: +d.distance,
+          distance: haversine(+d.flat, +d.flng, +d.tlat, +d.tlng, true),
           trips: +d.trips,
           dbike: +d.dbike,
           dwalk: +d.dwalk,
@@ -104,7 +104,9 @@
 
         // Duplicate records based on # of trips
         json.forEach(function(r) {
-          if (r.twalk === 0) r.twalk = r.tbike * 2;
+          if (r.tbike === -1) r.tbike = 0;
+          if (r.twalk === -1) r.twalk = r.tbike * 2;
+
           for (var i = 1; i < r.trips; i++) {
             var c = clone(r);
             delete c.trips;
@@ -163,7 +165,7 @@
           .margins(margin)
           .round(Math.round)
           .elasticY(true)
-          .x(d3.scale.linear().domain([0, 40]))
+          .x(d3.scale.linear().domain([1, 40]))
           .dimension(dimensions.impact)
           .group(dimensions.impact.group(function(d) {
             return Math.round(d);
@@ -202,7 +204,7 @@
           return r.distance;
         });
         var averageTimeSavings = d3.mean(rows, function(r) {
-          return (r.twalk - r.tbike) / 60;
+          return r.twalk - r.tbike;
         });
 
         var el = document.querySelector('.time-saved');
@@ -215,7 +217,7 @@
             return d.distance;
           }),
           impact: o.dimension(function(d) {
-            return (d.twalk - d.tbike) / 60;
+            return d.twalk - d.tbike;
           })
         };
       }
@@ -235,7 +237,7 @@
         // Generate hexbins
         var origins = data.map(function(d) {
           var j = d.coords[0];
-          j.impact = (d.twalk - d.tbike) / 60;
+          j.impact = d.twalk - d.tbike;
           j.origin = 1;
           return j;
         });
@@ -251,6 +253,7 @@
               b.impact = b.reduce(function(v, j) {
                 return v + j.impact;
               }, 0);
+              b.impact = b.impact / b.length;
               if (b.impact < min) min = b.impact;
               if (b.impact > max) max = b.impact;
             });
@@ -284,6 +287,44 @@
         var temp = obj.constructor();
         for (var key in obj) temp[key] = clone(obj[key]);
         return temp;
+      }
+
+      /**
+       * Get the haversine distance between two points
+       *
+       * @param {Number} starting latitude
+       * @param {Number} starting longitude
+       * @param {Number} ending latitude
+       * @param {Number} ending longitude
+       * @param {Boolean} return the distance in miles instead of kilometers
+       * @returns {Number} distance between the points
+       */
+
+      function haversine(lat1, lon1, lat2, lon2, miles) {
+        var R = miles ? 3960 : 6371;
+
+        var dLat = rad(lat2 - lat1);
+        var dLon = rad(lon2 - lon1);
+
+        lat1 = rad(lat1);
+        lat2 = rad(lat2);
+
+        var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c;
+      };
+
+      /**
+       * Convert a lat/lon point to radians
+       *
+       * @param {Number} n
+       * @returns {Number} r
+       */
+
+      function rad(n) {
+        return n * Math.PI / 180;
       }
     </script>
   </body>
