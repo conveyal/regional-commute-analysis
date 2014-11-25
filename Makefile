@@ -110,12 +110,8 @@ install: node_modules
 node_modules:
 	@npm install
 
-profiles: data/profiles.json
-
 push:
-	@to-s3 . commute-analysis.conveyal.com \
-		--ignore ./bin,components,data/blocks,data/centroids,data/lodes,data/od-pairs,.git,node_modules,.DS_Store \
-		--acl public-read \
-		--verbose
+	@aws s3 sync client commute-analysis.conveyal.com \
+		--acl public-read
 
 .PHONY: clean clean-data install profiles push otp
