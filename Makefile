@@ -27,7 +27,7 @@ TRANSIT_MODES = BUS,TRAINISH
 MONGODB = mongodb://localhost/regional-commute-analysis
 
 # OTP URL
-OTP_URL = http://carfreeatoz-opentripplanner-1020724384.us-east-1.elb.amazonaws.com
+OTP_URL = localhost:8080
 
 # Minimum # of trips between OD pairs
 TRIPS = 0
@@ -104,7 +104,7 @@ data/lodes/%.csv:
 		| gzip --decompress > $@
 
 install: node_modules
-	@mkdir data data/blocks data/centroids data/lodes || true
+	@mkdir -p data/blocks data/centroids data/lodes client/data || true
 	@npm install component serve -g
 
 node_modules:
