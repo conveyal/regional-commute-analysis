@@ -9,8 +9,8 @@ STATES = dc va md
 BLOCKS = $(foreach fip, $(FIPS), data/blocks/tl_2013_$(fip)_tabblock.shp)
 
 # Bounds - need brackets for the argument parser
-NW = [-77.6,39.2]
-SE = [-76.6,38.2]
+NW = [-77.7,39.3]
+SE = [-76.5,38.1]
 
 # From http://lehd.ces.census.gov/data/
 LODES = $(foreach state, $(STATES), \
@@ -111,7 +111,7 @@ node_modules:
 	@npm install
 
 push:
-	@aws s3 sync client commute-analysis.conveyal.com \
+	@aws s3 sync client s3://commute-analysis.conveyal.com \
 		--acl public-read
 
 .PHONY: clean clean-data install profiles push otp
