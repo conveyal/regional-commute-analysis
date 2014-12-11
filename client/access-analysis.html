@@ -15,9 +15,10 @@
       }
 
       #map {
-        height: 400px;
+        height: 500px;
         width: 100%;
         border-bottom: 4px solid #ddd;
+        margin-bottom: 10px;
       }
 
       #modes {
@@ -27,37 +28,84 @@
       #modes label {
         margin-right: 10px;
       }
+
+      .color-scale-block {
+        display: inline-block;
+        padding: 0 5px;
+      }
     </style>
   </head>
   <body>
     <div id="viz" style="display:none;">
       <div id="map"></div>
       <div class="container">
-        <div class="row">
-          <div id="data-count" class="col-sm-6">
-            <h4><strong class="filter-count"></strong> selected out of <strong class="total-count"></strong> records</h4>
+        <div class="row" style="text-align: center;">
+          <div id="data-count" class="col-sm-4">
+            <strong class="filter-count"></strong> out of <strong class="total-count"></strong>
           </div>
-          <div id="stats" class="col-sm-6">
-            <h4 class="pull-right"><strong class="time-saved"></strong> minutes saved on average</h4>
+          <div class="col-sm-4">
+            <span id="min-time"></span>
+            <span id="color-scale"></span>
+            <span id="max-time"></span>
+          </div>
+          <div id="stats" class="col-sm-4">
+            <strong class="time-saved"></strong> total min saved
           </div>
         </div>
+        <br>
         <div class="row">
-          <div id="distance-chart" class="col-sm-6">
-            <strong>Distance</strong>
+          <div id="distance-chart" class="col-sm-4">
+            <strong>Distance (mi)</strong>
             <span class="filter"></span>
             <a class="reset" href="javascript:charts.distance.filterAll();dc.redrawAll();" style="display:none;">reset</a>
             <div class="clearfix"></div>
           </div>
-          <div id="impact-chart" class="col-sm-6">
-            <strong>Time Impact</strong>
+          <div id="impact-chart" class="col-sm-4">
+            <strong>Impact (Walk time - Bike time)</strong>
             <a class="reset" href="javascript:charts.impact.filterAll();dc.redrawAll();" style="display:none;">reset</a>
             <div class="clearfix"></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-sm-6">
+            <form class="form">
+              <div class="checkbox">
+                <label>
+                  <input id="works-in-bounds" type="checkbox" checked> Works in Arlington
+                </label>
+              </div>
+              <div class="checkbox">
+                <label>
+                  <input id="works-out-bounds" type="checkbox" checked> Works outside Arlington
+                </label>
+              </div>
+              <div class="radio">
+                <label>
+                  <input type="radio" name="journeyType" id="bike-and-walk" value="bikeAndWalk" checked>
+                  Bike-to-transit vs walk-to-transit
+                </label>
+              </div>
+              <div class="radio">
+                <label>
+                  <input type="radio" name="journeyType" id="bike-only" value="bikeOnly">
+                  Bike-to-transit but no walk-to-transit
+                </label>
+              </div>
+              <div class="radio">
+                <label>
+                  <input type="radio" name="journeyType" id="car-only" value="carOnly">
+                  Car only
+                </label>
+              </div>
+            </form>
           </div>
         </div>
       </div>
     </div>
 
+    <script src="//cdnjs.cloudflare.com/ajax/libs/spin.js/2.0.1/spin.min.js"></script>
     <script src="//api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.js"></script>
+    <script src='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-pip/v0.0.2/leaflet-pip.js'></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.4.13/d3.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/crossfilter/1.3.7/crossfilter.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/dc/1.6.0/dc.js"></script>
@@ -65,11 +113,14 @@
     <script src="d3.hexbin.v0.min.js"></script>
     <script src="hexbin.js"></script>
     <script>
+      // Spinner
+      var spinner = new Spinner().spin(document.body);
+
       // constants
       var height = 150,
-        width = 470,
+        width = 400,
         margin = {
-          top: 0,
+          top: 10,
           right: 10,
           bottom: 20,
           left: 40
@@ -78,41 +129,80 @@
       var colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
 
       // globals
-      var blocks, currentDimension, data, dimensions = {},
-        _id, json, map, options;
+      var blocks, currentDimension, data, dimensions = {}, geoBounds,
+        _id, json, originalJSON, map, options;
+
+      // Checkboxes
+      var $destinationInBounds = document.getElementById('works-in-bounds');
+      var $destinationOutBounds = document.getElementById('works-out-bounds');
+
+      // Radio
+      var $bikeAndWalk = document.getElementById('bike-and-walk');
+      var $bikeOnly = document.getElementById('bike-only');
+      var $carOnly = document.getElementById('car-only');
+
+      // Max time
+      var $colorscale = document.getElementById('color-scale');
+      var $maxtime = document.getElementById('max-time');
+      var $mintime = document.getElementById('min-time');
 
       // Expose charts
       var charts = window.charts = {};
 
-      // Load json
-      d3.csv('data/access-mode-diff.csv', function(d) {
-        return {
-          coords: [
-            [ +d.flng, +d.flat ],
-            [ +d.tlng, +d.tlat ]
-          ],
-          distance: haversine(+d.flat, +d.flng, +d.tlat, +d.tlng, true),
-          trips: +d.trips,
-          dbike: +d.dbike,
-          dwalk: +d.dwalk,
-          tbike: +d.tbike,
-          twalk: +d.twalk
-        };
-      }, function(err, j) {
+      // Load Bounds
+      d3.json('data/bounds.geo.json', processGeoJson);
+
+      function processGeoJson(err, j) {
+        if (err) console.error(err);
+        geoBounds = j;
+
+        // Load json
+        d3.csv('data/access-mode-diff.csv', function(d) {
+          return {
+            coords: [
+              [ +d.flng, +d.flat ],
+              [ +d.tlng, +d.tlat ]
+            ],
+            distance: haversine(+d.flat, +d.flng, +d.tlat, +d.tlng, true),
+            trips: +d.trips,
+            dbike: +d.dbike,
+            dwalk: +d.dwalk,
+            tbike: +d.tbike,
+            twalk: +d.twalk,
+            impact: 0,
+            modes: 1 // All
+          };
+        }, processCsv);
+      }
+
+      function processCsv(err, j) {
         if (err) console.error(err);
         json = j;
 
         // Duplicate records based on # of trips
+        var duplicates = [];
         json.forEach(function(r) {
-          if (r.tbike === -1) r.tbike = 0;
-          if (r.twalk === -1) r.twalk = r.tbike * 2;
+          if (r.twalk === -1 && r.tbike === -1) {
+            r.modes = 3; // no bike or walk
+          } else if (r.twalk === -1) {
+            r.impact = r.tbike;
+            r.modes = 2; // no walk
+          } else if (r.twalk > r.tbike) {
+            r.impact = (r.twalk - r.tbike);
+          }
 
           for (var i = 1; i < r.trips; i++) {
             var c = clone(r);
             delete c.trips;
-            json.push(clone(r));
+            duplicates.push(clone(r));
           }
           delete r.trips;
+        });
+        json = json.concat(duplicates);
+
+        // Filter out the outliers
+        json = json.filter(function(d) {
+          return d.modes > 1 || d.impact < 20;
         });
 
         // Show viz & stop spinner
@@ -122,7 +212,14 @@
         map = L.mapbox.map('map', 'conveyal.gepida3i', {
           touchZoom: false,
           scrollWheelZoom: false
-        }).setView([38.8399874, -77.0911667], 11);
+        }).setView([38.8399874, -77.0911667], 9);
+
+        // Add bounds
+        geoBounds = L.geoJson(geoBounds, {
+           style: {
+             fillOpacity: 0
+           }
+        }).addTo(map);
 
         // Generate Hexbins
         map.on('viewreset', function() {
@@ -131,7 +228,16 @@
 
         // Crossfilterize
         processJson(json, map);
-      });
+
+        // Show extends
+        d3.json('data/outerbounds.geo.json', function(err, json) {
+          L.geoJson(json, {
+            style: {
+              fillOpacity: 0
+            }
+          }).addTo(map)
+        });
+      }
 
       function processJson(json, map) {
         // Dispose of all dimensions
@@ -165,7 +271,8 @@
           .margins(margin)
           .round(Math.round)
           .elasticY(true)
-          .x(d3.scale.linear().domain([1, 40]))
+          .elasticX(true)
+          .x(d3.scale.linear().domain([0, 60]))
           .dimension(dimensions.impact)
           .group(dimensions.impact.group(function(d) {
             return Math.round(d);
@@ -174,6 +281,10 @@
         charts.count = dc.dataCount('#data-count')
           .dimension(options)
           .group(options.groupAll());
+
+        dimensions.modes.filter(function(d) {
+          return d === 1;
+        });
 
         dc.renderAll();
 
@@ -187,28 +298,60 @@
         // Attach to dc.js renderLet
         charts.distance.renderlet(function(c) {
           dc.events.trigger(function() {
+            // Rendering allll
+            console.log('DC Events triggered');
+
             // Redraw the hexbins
             generateHexbins(map);
 
             // Show stats
             showStats(currentDimension.top(Infinity));
+
+            // Stop spinner
+            spinner.stop();
           });
         });
+
+        $destinationInBounds.onchange = function() {
+          filterDestinations($destinationInBounds.checked, $destinationOutBounds.checked, dimensions.destination, geoBounds);
+        };
+
+        $destinationOutBounds.onchange = function() {
+          filterDestinations($destinationInBounds.checked, $destinationOutBounds.checked, dimensions.destination, geoBounds);
+        };
+
+        $bikeAndWalk.onchange = function() {
+          dc.filterAll();
+          dimensions.modes.filter(function(d) {
+            return d === 1;
+          });
+          dc.renderAll();
+        };
+
+        $bikeOnly.onchange = function() {
+          dc.filterAll();
+          dimensions.modes.filter(function(d) {
+            return d === 2;
+          });
+          dc.renderAll();
+        };
+
+        $carOnly.onchange = function() {
+          dc.filterAll();
+          dimensions.modes.filter(function(d) {
+            return d === 3;
+          });
+          dc.renderAll();
+        };
       }
 
       function showStats(rows) {
-        var averageTripLength = d3.mean(rows, function(r) {
-          return r.tbike;
-        });
-        var averageDistance = d3.mean(rows, function(r) {
-          return r.distance;
-        });
-        var averageTimeSavings = d3.mean(rows, function(r) {
-          return r.twalk - r.tbike;
-        });
+        var totalTimeSavings = rows.reduce(function(m, r) {
+          return m + r.impact;
+        }, 0);
 
         var el = document.querySelector('.time-saved');
-        el.textContent = Math.round(averageTimeSavings);
+        el.textContent = Math.round(totalTimeSavings);
       }
 
       function getDimensions(o) {
@@ -217,7 +360,13 @@
             return d.distance;
           }),
           impact: o.dimension(function(d) {
-            return d.twalk - d.tbike;
+            return d.impact;
+          }),
+          destination: o.dimension(function(d) {
+            return d.coords[1];
+          }),
+          modes: o.dimension(function(d) {
+            return d.modes;
           })
         };
       }
@@ -237,7 +386,7 @@
         // Generate hexbins
         var origins = data.map(function(d) {
           var j = d.coords[0];
-          j.impact = d.twalk - d.tbike;
+          j.impact = d.impact;
           j.origin = 1;
           return j;
         });
@@ -258,9 +407,27 @@
               if (b.impact > max) max = b.impact;
             });
 
-            return d3.scale.sqrt()
-              .domain([ 0, d3.mean(bs, function(b) { return b.impact; }),  max ])
+            $maxtime.textContent = ' min';
+            $colorscale.innerHTML = null;
+
+            var impacts = bs.map(function(d) { return d.impact; });
+            impacts.sort(d3.ascending);
+
+            var middle = d3.quantile(impacts, 0.5);
+            var cscale = d3.scale.linear()
+              .domain([ min, middle, max ])
               .range(colorbrewer.Spectral[3]);
+
+            var scales = '';
+
+            for (var i = 0; i <= 10; i++) {
+              var q = d3.quantile(impacts, i / 10);
+              scales += '<span class="color-scale-block" style="background-color:' + cscale(q) + ';">' + q.toFixed(1) + '</span>';
+            }
+
+            $colorscale.innerHTML = scales;
+
+            return cscale;
 
           },
           height: $map.clientHeight,
@@ -278,6 +445,32 @@
             fillColor: d.color
           }).addTo(map);
         });
+      }
+
+      function filterDestinations(inBound, outBound, dimension, bounds) {
+        if (inBound && outBound) {
+          dimension.filterAll();
+        } else if (inBound) {
+          dimension.filter(function(c) {
+            return pip(c, bounds);
+          });
+        } else if (outBound) {
+          dimension.filter(function(c) {
+            return !pip(c, bounds);
+          });
+        } else {
+          dimension.filter(function(c) {
+            return false;
+          });
+        }
+
+        dc.renderAll();
+      }
+
+      function pip(ll, bounds) {
+        var layer = leafletPip.pointInLayer(ll, bounds, true);
+        if (layer.length) return true;
+        else return false;
       }
 
       function clone(obj) {

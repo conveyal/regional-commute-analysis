@@ -8,9 +8,9 @@ STATES = dc va md
 # From https://www.census.gov/geo/maps-data/data/tiger-line.html
 BLOCKS = $(foreach fip, $(FIPS), data/blocks/tl_2013_$(fip)_tabblock.shp)
 
-# Bounds - need brackets for the argument parser
-NW = [-77.7,39.3]
-SE = [-76.5,38.1]
+# Centroid Extraction Bounds - need brackets for the argument parser
+NW = [-77.7,39.5]
+SE = [-76.3,38.1]
 
 # From http://lehd.ces.census.gov/data/
 LODES = $(foreach state, $(STATES), \
@@ -27,7 +27,7 @@ TRANSIT_MODES = BUS,TRAINISH
 MONGODB = mongodb://localhost/regional-commute-analysis
 
 # OTP URL
-OTP_URL = localhost:8080
+OTP = localhost:8080
 
 # Minimum # of trips between OD pairs
 TRIPS = 0
@@ -42,7 +42,7 @@ END = 09:00
 # Transit options limit
 LIMIT = 2
 
-# Bounds
+# O/D Pair Bounds
 BOUNDS = data/arlington.geo.json
 
 # Concurrency
@@ -81,13 +81,13 @@ data/od-pairs.csv: node_modules data/centroids.json $(LODES)
 access-mode-diff: node_modules data/od-pairs.csv
 	@./bin/access-mode-diff data/od-pairs.csv data/access-mode-diff.json \
 		--concurrency $(CONCURRENCY) \
-		--host $(OTP_URL)/otp/routers/default \
+		--host $(OTP)/otp/routers/default \
 		--mongodb $(MONGODB)
 
 data/profiles.json: node_modules data/od-pairs.json
 	@./bin/profile data/od-pairs.json data/profiles.json \
 		--concurrency $(CONCURRENCY) \
-		--host $(OTP_URL)/otp/routers/default \
+		--host $(OTP)/otp/routers/default \
 		--modes $(MODES) \
 		--start $(START) \
 		--end $(END) \
