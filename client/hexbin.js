@@ -13,7 +13,7 @@ function hexbin(data, opts) {
   var raccessor = opts.raccessor || function(b) { return b.length; };
   var rmax = opts.rmax || 0.5;
   var rscale = opts.rscale || function(bs) {
-    return d3.scale.log()
+    return d3.scale.linear()
       .domain([ 1, d3.max(bs, raccessor) || 1 ])
       .range([ rmax / 2, rmax ]);
   };
