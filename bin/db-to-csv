@@ -39,23 +39,29 @@ function query(callback) {
 }
 
 function extract(profile) {
+  var bikeToTransit = timeForMode(profile, 'bicycle');
+  var walkToTransit = timeForMode(profile, 'walk');
+  var directBike = timeForMode(profile, 'bicycle', true);
+  var directWalk = timeForMode(profile, 'walk', true);
   return [
     profile.from[0],
     profile.from[1],
     profile.to[0],
     profile.to[1],
     profile.trips,
-    timeForMode(profile, 'bicycle', true),
-    timeForMode(profile, 'walk', true),
-    timeForMode(profile, 'bicycle'),
-    timeForMode(profile, 'walk')
+    directBike.total,
+    directWalk.total,
+    bikeToTransit.total,
+    bikeToTransit.access,
+    walkToTransit.total,
+    walkToTransit.access
   ].join(',');
 }
 
 function write(err) {
   if (err) console.error(err);
 
-  var heading = [ 'flng', 'flat', 'tlng', 'tlat', 'trips', 'dbike', 'dwalk', 'tbike', 'twalk' ];
+  var heading = [ 'flng', 'flat', 'tlng', 'tlat', 'trips', 'dbike', 'dwalk', 'tbike', 'tbikea', 'twalk', 'twalka' ];
   var csv = heading.join(',') + '\n' + data.join('\n');
   fs.writeFileSync(resolve(args._[0]), csv, { encoding: 'utf8' });
 
@@ -63,13 +69,14 @@ function write(err) {
 }
 
 function timeForMode(profile, mode, direct) {
-  if (!profile.success) return -1;
+  var empty = { access: -1, total: -1 };
+  if (!profile.success) return empty;
   var match = profile.results.filter(function(result) {
     var hasTransit = result.transit && result.transit.length > 0;
     if (mode === result.access[0].mode.toLowerCase() && ((direct && !hasTransit) || (!direct && hasTransit)))
       return true;
     return false;
   })[0];
-  if (!match) return -1;
-  else return match.time;
+  if (!match) return empty;
+  else return { access: Number(match.access[0].time / 60).toFixed(2), total: Number(match.time).toFixed(2) };
 }

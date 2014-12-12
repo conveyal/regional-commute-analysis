@@ -41,7 +41,8 @@ function hexbin(data, opts) {
     var color = cscale(cvalue);
 
     return {
-      center: { lon: bin.x, lat: bin.y },
+      bin: bin,
+      center: [ bin.x, bin.y ],
       color: color,
       coords: lls
     };
