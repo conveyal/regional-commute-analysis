@@ -87,6 +87,11 @@
             <form class="form">
               <div class="checkbox">
                 <label>
+                  <input id="show-bounds" type="checkbox" checked> Show bounds
+                </label>
+              </div>
+              <div class="checkbox">
+                <label>
                   <input id="works-in-bounds" type="checkbox" checked> Works in Arlington
                 </label>
               </div>
@@ -149,10 +154,11 @@
       var colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
 
       // globals
-      var blocks, currentDimension, data, dimensions = {}, geoBounds,
+      var blocks, currentDimension, data, dimensions = {}, geoBounds, outerbounds,
         _id, json, originalJSON, map, options;
 
       // Checkboxes
+      var $showBounds = document.getElementById('show-bounds');
       var $destinationInBounds = document.getElementById('works-in-bounds');
       var $destinationOutBounds = document.getElementById('works-out-bounds');
 
@@ -255,7 +261,7 @@
 
         // Show extends
         d3.json('data/outerbounds.geo.json', function(err, json) {
-          L.geoJson(json, {
+          outerbounds = L.geoJson(json, {
             style: {
               fillOpacity: 0
             }
@@ -294,9 +300,8 @@
           .width(width)
           .margins(margin)
           .round(Math.round)
-          .elasticY(true)
           .elasticX(true)
-          .x(d3.scale.linear().domain([1, 20]))
+          .x(d3.scale.linear().domain([0, 90]))
           .dimension(dimensions.impact)
           .group(dimensions.impact.group(function(d) {
             return Math.round(d);
@@ -389,10 +394,18 @@
           $percentChart.style.display = 'none';
           dc.renderAll();
         };
+
+        $showBounds.onchange = function() {
+          var style = {
+            opacity: $showBounds.checked ? 0.5 : 0
+          };
+          geoBounds.setStyle(style);
+          outerbounds.setStyle(style);
+        };
       }
 
       function showStats(rows) {
-        var totalTimeSavings = rows.reduce(function(m, r) {
+        var totalTimeSavings = d3.mean(rows.reduce(function(m, r) {
           return m + r.impact;
         }, 0);
 
