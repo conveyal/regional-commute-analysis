@@ -405,7 +405,7 @@
       }
 
       function showStats(rows) {
-        var totalTimeSavings = d3.mean(rows.reduce(function(m, r) {
+        var totalTimeSavings = rows.reduce(function(m, r) {
           return m + r.impact;
         }, 0);
 
