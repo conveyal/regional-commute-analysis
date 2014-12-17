@@ -152,7 +152,7 @@
       var charts = window.charts = {};
 
       // Current Color Brewer Scale
-      var colorScale = colorbrewer.RdYlBu[4];
+      var colorScale = colorbrewer.RdYlBu[4].slice(0);
 
       // Load Bounds
       d3.json('data/bounds.geo.json', processGeoJson);
@@ -334,7 +334,7 @@
           $bikeOnly.classList.remove('active');
           $carOnly.classList.remove('active');
 
-          colorScale = colorbrewer.RdYlBu[4];
+          colorScale = colorbrewer.RdYlBu[4].slice(0);
 
           dc.filterAll();
           charts.impact = dc.barChart('#impact-chart')
@@ -363,7 +363,7 @@
           $bikeOnly.classList.add('active');
           $carOnly.classList.remove('active');
 
-          colorScale = colorbrewer.RdYlGn[4].reverse();
+          colorScale = colorbrewer.RdYlGn[4].slice(0).reverse();
 
           dc.filterAll();
           charts.impact = dc.barChart('#impact-chart')
@@ -393,7 +393,7 @@
           $bikeOnly.classList.remove('active');
           $carOnly.classList.add('active');
 
-          colorScale = colorbrewer.RdYlGn[3].reverse();
+          colorScale = colorbrewer.RdYlGn[3].slice(0).reverse();
           colorScale.unshift('#333');
 
           dc.filterAll();
@@ -499,7 +499,6 @@
               upper = d3.quantile(impacts, quantile);
             }
 
-            console.log(min, upper, max);
             cscale = d3.scale.linear()
               .domain([ min, upper / 2, upper, max ])
               .range(colorScale);
@@ -523,7 +522,7 @@
 
         _polygons = hexbins.map(function(d) {
           var center = [ d.center[1], d.center[0] ];
-          return L.polygon(d.coords, {
+          var poly = L.polygon(d.coords, {
             stroke: true,
             weight: 1,
             color: '#e5e5e5',
@@ -540,8 +539,12 @@
                   weight: 3
                 }).addTo(map);
               });
-            })
-            .bindPopup(d.bin.length + ' commute(s) from this bin.');
+            });
+          var popup = poly.bindPopup(d.bin.length + ' commute(s) from this bin.');
+          popup.on('popupclose', function() {
+            _polylines.forEach(map.removeLayer.bind(map));
+          });
+          return poly;
         });
       }
 
