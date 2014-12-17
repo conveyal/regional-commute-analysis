@@ -46,7 +46,7 @@ LIMIT = 2
 BOUNDS = data/arlington.geo.json
 
 # Concurrency
-CONCURRENCY = 10
+CONCURRENCY = 1
 
 # Black magic
 null :=
@@ -79,10 +79,11 @@ data/od-pairs.csv: node_modules data/centroids.json $(LODES)
 	@bin/od-analysis
 
 access-mode-diff: node_modules data/od-pairs.csv
-	@./bin/access-mode-diff data/od-pairs.csv data/access-mode-diff.json \
+	@./bin/access-mode-diff data/od-pairs.csv data/access-mode-diff.csv \
 		--concurrency $(CONCURRENCY) \
 		--host $(OTP)/otp/routers/default \
-		--mongodb $(MONGODB)
+		--mongodb $(MONGODB) \
+		--force
 
 data/profiles.json: node_modules data/od-pairs.json
 	@./bin/profile data/od-pairs.json data/profiles.json \
