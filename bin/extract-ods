@@ -40,8 +40,8 @@ lines.forEach(function(line) {
   var trips = parseInt(line[2]);
   if (trips < minTrips) return;
 
-  var o = centroids[line[0]];
-  var d = centroids[line[1]];
+  var d = centroids[line[0]];
+  var o = centroids[line[1]];
 
   if (!o || !d) return;
 
