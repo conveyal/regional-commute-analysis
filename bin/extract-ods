@@ -54,27 +54,26 @@ lines.forEach(function(line) {
     coordinates: d
   };
 
-  if (!geojsonUtils.pointInPolygon(gjto, bounds) &&
-      !geojsonUtils.pointInPolygon(gjfrom, bounds)) return;
+  if (geojsonUtils.pointInPolygon(gjto, bounds) || geojsonUtils.pointInPolygon(gjfrom, bounds)) {
+    var distance = haversine({
+      longitude: o[0],
+      latitude: o[1]
+    }, {
+      longitude: d[0],
+      latitude: d[1]
+    });
 
-  var distance = haversine({
-    longitude: o[0],
-    latitude: o[1]
-  }, {
-    longitude: d[0],
-    latitude: d[1]
-  });
-
-  if (distance > maxDistance || distance < minDistance) return;
-
-  pairs += '\n' + [
-    o[0],
-    o[1],
-    d[0],
-    d[1],
-    trips,
-    distance
-  ].join(',');
+    if (distance <= maxDistance && distance >= minDistance) {
+      pairs += '\n' + [
+        o[0],
+        o[1],
+        d[0],
+        d[1],
+        trips,
+        distance
+      ].join(',');
+    }
+  }
 });
 
 console.log(pairs.split('\n').length + ' journeys found in ' + inputFile);
