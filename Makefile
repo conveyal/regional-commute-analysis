@@ -46,7 +46,7 @@ LIMIT = 2
 BOUNDS = data/arlington.geo.json
 
 # Concurrency
-CONCURRENCY = 1
+CONCURRENCY = 4
 
 # Black magic
 null :=
@@ -82,8 +82,7 @@ access-mode-diff: node_modules data/od-pairs.csv
 	@./bin/access-mode-diff data/od-pairs.csv data/access-mode-diff.csv \
 		--concurrency $(CONCURRENCY) \
 		--host $(OTP)/otp/routers/default \
-		--mongodb $(MONGODB) \
-		--force
+		--mongodb $(MONGODB)
 
 data/profiles.json: node_modules data/od-pairs.json
 	@./bin/profile data/od-pairs.json data/profiles.json \

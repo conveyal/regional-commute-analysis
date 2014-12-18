@@ -8,7 +8,6 @@ var ms = require('ms');
 var Profiler = require('otp-profiler');
 var Progress = require('progress');
 var resolve = require('path').resolve;
-var Scorer = require('otp-profile-score');
 
 var db = require('../lib/db');
 var Profile = require('../lib/profile');
@@ -41,7 +40,6 @@ var batch = new Batch();
 var profiler = new Profiler({
   host: args.host
 });
-var scorer = new Scorer();
 var first = true;
 
 batch.concurrency(args.concurrency);
@@ -85,7 +83,7 @@ batch.end(function(err, results) {
   process.exit();
 });
 
-function profileJourney(journey, complete) {
+function profileJourney(journey, complete, retryCount) {
   var from = [ parseFloat(journey[0]), parseFloat(journey[1]) ];
   var to = [ parseFloat(journey[2]), parseFloat(journey[3]) ];
 
@@ -110,7 +108,7 @@ function profileJourney(journey, complete) {
           results = [];
           message = 'No results found.';
         } else {
-          results = scorer.processOptions(results.options);
+          results = results.options;
           results.forEach(function(option) {
             option.access.forEach(function(access) {
               delete access.geometry;
