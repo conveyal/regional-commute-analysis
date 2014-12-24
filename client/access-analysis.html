@@ -189,6 +189,10 @@
         // Duplicate records based on # of trips
         var duplicates = [];
         json.forEach(function(r) {
+          [ 'dbike', 'dwalk', 'tbike', 'twalk' ].forEach(function(a) {
+            if (r[a] !== -1) r[a] = r[a] / 60;
+          });
+
           if (r.twalk === -1 && r.tbike === -1) {
             r.impact = r.dbike > 0 ? r.dbike : 0;
             r.modes = 3; // no bike or walk
