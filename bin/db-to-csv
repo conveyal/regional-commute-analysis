@@ -5,6 +5,7 @@ var args = require('minimist')(process.argv.slice(2));
 var async = require('async');
 var fs = require('fs');
 var resolve = require('path').resolve;
+var Scorer = require('otp-profile-score');
 
 var db = require('../lib/db');
 var Profile = require('../lib/profile');
@@ -17,6 +18,7 @@ db.connect(args.mongodb);
 
 var data = [];
 var limit = 100;
+var scorer = new Scorer();
 var skip = 0;
 
 // Run until it fails
@@ -39,10 +41,21 @@ function query(callback) {
 }
 
 function extract(profile) {
-  var bikeToTransit = timeForMode(profile, 'bicycle');
-  var walkToTransit = timeForMode(profile, 'walk');
-  var directBike = timeForMode(profile, 'bicycle', true);
-  var directWalk = timeForMode(profile, 'walk', true);
+  var success = profile.success && profile.results && profile.results.length > 0;
+  var empty = { access: -1, total: -1 };
+  var bikeToTransit = empty;
+  var walkToTransit = empty;
+  var directBike = empty;
+  var directWalk = empty;
+
+  if (success) {
+    var results = scorer.processOptions(profile.results);
+    bikeToTransit = timeForMode(results, 'bicycle');
+    walkToTransit = timeForMode(results, 'walk');
+    directBike = timeForMode(results, 'bicycle', true);
+    directWalk = timeForMode(results, 'walk', true);
+  }
+
   return [
     profile.from[0],
     profile.from[1],
@@ -68,10 +81,9 @@ function write(err) {
   process.exit();
 }
 
-function timeForMode(profile, mode, direct) {
+function timeForMode(results, mode, direct) {
   var empty = { access: -1, total: -1 };
-  if (!profile.success) return empty;
-  var match = profile.results.filter(function(result) {
+  var match = results.filter(function(result) {
     var hasTransit = result.transit && result.transit.length > 0;
     if (mode === result.access[0].mode.toLowerCase() && ((direct && !hasTransit) || (!direct && hasTransit)))
       return true;
