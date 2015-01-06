@@ -120,6 +120,8 @@
       // Spinner
       var spinner = new Spinner().spin(document.body);
 
+      var siteUrl = 'http://www.carfreeatoz.com';
+
       // constants
       var height = 150,
         width = 400,
@@ -544,8 +546,12 @@
                 var destination = bin.destination;
                 return L.polyline([ center, [ destination[1], destination[0] ] ], {
                   color: cscale(bin.impact),
-                  weight: 3
-                }).addTo(map);
+                  weight: 5
+                }).addTo(map).on('click', function() {
+                  var from = '&from=' + [ d.center[0], d.center[1] ].join(',');
+                  var to = '&to=' + [ destination[0], destination[1] ].join(',')
+                  window.open(siteUrl + '/planner?modes=BICYCLE,BUS,TRAINISH,WALK&start_time=6&end_time=9&days=M—F' + from + to, '_blank');
+                });
               });
             });
           var popup = poly.bindPopup(d.bin.length + ' commute(s) from this bin.');
