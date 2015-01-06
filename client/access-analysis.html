@@ -30,7 +30,7 @@
 
       .color-scale-block {
         display: inline-block;
-        padding: 0 5px;
+        padding: 0 6px;
       }
 
       .row {
@@ -152,7 +152,7 @@
       var charts = window.charts = {};
 
       // Current Color Brewer Scale
-      var colorScale = colorbrewer.RdYlBu[4].slice(0);
+      var colorScale = colorbrewer.Blues[4].slice(0);
 
       // Load Bounds
       d3.json('data/bounds.geo.json', processGeoJson);
@@ -338,7 +338,7 @@
           $bikeOnly.classList.remove('active');
           $carOnly.classList.remove('active');
 
-          colorScale = colorbrewer.RdYlBu[4].slice(0);
+          colorScale = colorbrewer.Blues[4].slice(0);
 
           dc.filterAll();
           charts.impact = dc.barChart('#impact-chart')
@@ -367,7 +367,7 @@
           $bikeOnly.classList.add('active');
           $carOnly.classList.remove('active');
 
-          colorScale = colorbrewer.RdYlGn[4].slice(0).reverse();
+          colorScale = colorbrewer.Greens[4].slice(0).reverse();
 
           dc.filterAll();
           charts.impact = dc.barChart('#impact-chart')
@@ -397,7 +397,7 @@
           $bikeOnly.classList.remove('active');
           $carOnly.classList.add('active');
 
-          colorScale = colorbrewer.RdYlGn[3].slice(0).reverse();
+          colorScale = colorbrewer.Oranges[3].slice(0).reverse();
           colorScale.unshift('#333');
 
           dc.filterAll();
@@ -498,19 +498,23 @@
 
             var quantile = 2 / 3;
             var upper = d3.quantile(impacts, quantile);
-            while (upper === 0) {
-              quantile += 0.05;
-              upper = d3.quantile(impacts, quantile);
+            var lower = upper / 2;
+            while (lower === 0) {
+              quantile += 0.001;
+              lower = d3.quantile(impacts, quantile);
+              upper = d3.quantile(impacts, (1 - quantile) / 2 + quantile);
             }
 
+            var domain = [ min, lower, upper, max ];
+
             cscale = d3.scale.linear()
-              .domain([ min, upper / 2, upper, max ])
+              .domain(domain)
               .range(colorScale);
 
             var scales = '';
 
-            for (var i = 0; i <= 5; i++) {
-              var q = d3.quantile(impacts, i / 5);
+            for (var i = 0; i < 4; i++) {
+              var q = domain[i];
               scales += '<span class="color-scale-block" style="background-color:' + cscale(q) + ';">' + q.toFixed(1) + '</span>';
             }
 
