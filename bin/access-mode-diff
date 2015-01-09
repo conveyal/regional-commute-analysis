@@ -166,7 +166,7 @@ function query(journey, done) {
     transitModes: 'BUS,TRAINISH',
     startTime: '06:00',
     endTime: '09:00',
-    limit: 1 // just get the fastest
+    limit: 3
   }, done);
 }
 

@@ -40,7 +40,7 @@ START = 06:00
 END = 09:00
 
 # Transit options limit
-LIMIT = 2
+LIMIT = 3
 
 # O/D Pair Bounds
 BOUNDS = data/arlington.geo.json
