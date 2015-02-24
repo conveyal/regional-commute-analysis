@@ -46,7 +46,12 @@ batch.concurrency(args.concurrency);
 
 odpairs.forEach(function(journey) {
   batch.push(function(done) {
-    profileJourney(journey.split(','), done);
+    try {
+      profileJourney(journey.split(','), done);
+    } catch(e) {
+      console.error(e.message);
+      console.error(e.stack);
+    }
   });
 });
 
@@ -86,6 +91,8 @@ batch.end(function(err, results) {
 function profileJourney(journey, complete, retryCount) {
   var from = [ parseFloat(journey[0]), parseFloat(journey[1]) ];
   var to = [ parseFloat(journey[2]), parseFloat(journey[3]) ];
+  var oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
   Profile.findOne({
     from: from,
@@ -93,7 +100,7 @@ function profileJourney(journey, complete, retryCount) {
   }, function(err, profile) {
     if (err) {
       complete(err);
-    } else if (profile && !args.force) {
+    } else if (profile && profile.updatedAt > oneWeekAgo) {
       stats.notUpdated++;
       complete();
     } else {
@@ -110,7 +117,7 @@ function profileJourney(journey, complete, retryCount) {
         } else {
           results = results.options;
           results.forEach(function(option) {
-            option.access.forEach(function(access) {
+            if (option.access) option.access.forEach(function(access) {
               delete access.geometry;
               delete access.walkSteps;
             });
