@@ -46,7 +46,7 @@ LIMIT = 3
 BOUNDS = data/arlington.geo.json
 
 # Concurrency
-CONCURRENCY = 4
+CONCURRENCY = 2
 
 # Black magic
 null :=
@@ -105,7 +105,7 @@ data/lodes/%.csv:
 
 install: node_modules
 	@mkdir -p data/blocks data/centroids data/lodes client/data || true
-	@npm install component serve -g
+	@npm install serve -g
 
 node_modules:
 	@npm install
