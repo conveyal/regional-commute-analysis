@@ -102,6 +102,7 @@ function profileJourney(journey, complete, retryCount) {
       complete(err);
     } else if (profile && profile.updatedAt > oneWeekAgo) {
       stats.notUpdated++;
+      message = 'Updated within a week';
       complete();
     } else {
       var profileStart = new Date();
@@ -148,7 +149,8 @@ function profileJourney(journey, complete, retryCount) {
           from: from,
           to: to,
           trips: parseInt(journey[4]),
-          results: results
+          results: results,
+          updatedAt: new Date()
         }, {
           upsert: true
         }, complete);

@@ -5,6 +5,7 @@
     "bars": "git://github.com/jstrace/bars",
     "batch": "^0.5.1",
     "clear": "0.0.1",
+    "component-each": "^0.2.5",
     "d3": "^3.4.11",
     "debug": "^1.0.4",
     "geojson-utils": "^1.1.0",
