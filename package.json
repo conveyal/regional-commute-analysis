@@ -9,7 +9,7 @@
     "d3": "^4.2.2",
     "debug": "^2.2.0",
     "geojson-utils": "^1.1.0",
-    "haversine": "^1.0.0",
+    "haversine": "^1.0.1",
     "histogram": "git://github.com/jstrace/histogram",
     "minimist": "^1.2.0",
     "mongoose": "^4.5.10",
