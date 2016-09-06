@@ -17,7 +17,7 @@
     "otp-profile-score": "*",
     "otp-profiler": "*",
     "progress": "^1.1.7",
-    "shapefile": "^0.3.0"
+    "shapefile": "^0.4.0"
   },
   "scripts": {
     "start": "serve"
