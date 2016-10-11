@@ -6,7 +6,7 @@
     "batch": "^0.5.1",
     "clear": "0.0.1",
     "component-each": "^0.2.5",
-    "d3": "^4.2.6",
+    "d3": "^4.2.7",
     "debug": "^2.2.0",
     "geojson-utils": "^1.1.0",
     "haversine": "^1.0.1",
