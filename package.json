@@ -1,7 +1,7 @@
 {
   "name": "commute-analysis",
   "dependencies": {
-    "async": "^2.0.1",
+    "async": "^2.1.1",
     "bars": "git://github.com/jstrace/bars",
     "batch": "^0.5.1",
     "clear": "0.0.1",
